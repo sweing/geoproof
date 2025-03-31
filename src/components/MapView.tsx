@@ -1,360 +1,217 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { MapPin, Navigation, Info } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { toast } from '@/components/ui/use-toast';
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { MapPin, Navigation, Info, Star } from "lucide-react";
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
-// Declare Leaflet types
-declare global {
-  interface Window {
-    L: any;
-  }
-}
-
-interface Device {
-  id: string;
-  name: string;
-  owner: string;
-  rating: number;
-  status: 'active' | 'inactive';
-  lastValidation: string;
-  location: [number, number];
-  address: string;
-  qrRefreshTime: number;
-  maxValidations: number;
-  validations: Array<{timestamp: string, status: string}>;
-}
+// Fix for Leaflet icon issues
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+});
 
 const MapView = () => {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const leafletMap = useRef<any>(null);
-  const [mapLoaded, setMapLoaded] = useState(false);
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
   const [nearbyDevices, setNearbyDevices] = useState(0);
-  const [averageRating, setAverageRating] = useState(0);
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
-  
-  // Mock device data
-  const mockDevices: Device[] = [
-    {
-      id: 'dev1',
-      name: 'ESP32 Office',
-      owner: 'JohnDoe',
-      rating: 4.8,
-      status: 'active',
-      lastValidation: '2023-06-15T14:35:00Z',
-      location: [48.1907, 16.3747],
-      address: 'Stephansplatz 1, 1010 Wien',
-      qrRefreshTime: 60,
-      maxValidations: 10,
-      validations: [
-        {timestamp: '2023-06-15T14:35:00Z', status: 'success'},
-        {timestamp: '2023-06-15T12:12:00Z', status: 'success'},
-        {timestamp: '2023-06-14T19:23:00Z', status: 'success'}
-      ]
-    },
-    {
-      id: 'dev2',
-      name: 'ESP32 Cafe',
-      owner: 'JaneDoe',
-      rating: 3.9,
-      status: 'active',
-      lastValidation: '2023-06-15T11:22:00Z',
-      location: [48.1957, 16.3687],
-      address: 'Universitätsring, 1010 Wien',
-      qrRefreshTime: 120,
-      maxValidations: 5,
-      validations: [
-        {timestamp: '2023-06-15T11:22:00Z', status: 'success'},
-        {timestamp: '2023-06-15T09:45:00Z', status: 'failed'},
-        {timestamp: '2023-06-14T16:33:00Z', status: 'success'}
-      ]
-    },
-    {
-      id: 'dev3',
-      name: 'ESP32 Park',
-      owner: 'SamSmith',
-      rating: 4.2,
-      status: 'inactive',
-      lastValidation: '2023-06-14T15:10:00Z',
-      location: [48.1857, 16.3797],
-      address: 'Stadtpark, 1030 Wien',
-      qrRefreshTime: 90,
-      maxValidations: 8,
-      validations: [
-        {timestamp: '2023-06-14T15:10:00Z', status: 'success'},
-        {timestamp: '2023-06-14T13:05:00Z', status: 'success'},
-        {timestamp: '2023-06-13T17:45:00Z', status: 'success'}
-      ]
-    }
-  ];
+  const [averageRating, setAverageRating] = useState(4.2);
 
   useEffect(() => {
-    // Load Leaflet scripts dynamically
-    const loadLeaflet = async () => {
-      if (!window.L) {
-        const leafletCSS = document.createElement('link');
-        leafletCSS.rel = 'stylesheet';
-        leafletCSS.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(leafletCSS);
+    if (mapRef.current && !mapInstanceRef.current) {
+      // Initialize map
+      const map = L.map(mapRef.current, {
+        center: [48.1887, 16.3767], // Vienna
+        zoom: 13,
+        zoomControl: false
+      });
 
-        const leafletScript = document.createElement('script');
-        leafletScript.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-        leafletScript.async = true;
-        
-        leafletScript.onload = initializeMap;
-        document.body.appendChild(leafletScript);
-      } else {
-        initializeMap();
-      }
-    };
+      // Set map instance to ref for later use
+      mapInstanceRef.current = map;
 
-    const initializeMap = () => {
-      if (mapRef.current && !leafletMap.current && window.L) {
-        // Initialize the map
-        const viennaCoordinates: [number, number] = [48.1887, 16.3767];
-        leafletMap.current = window.L.map(mapRef.current, {
-          center: viennaCoordinates,
-          zoom: 13,
-          zoomControl: false
+      // Add OSM tile layer
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+
+      // Add zoom control to top-right
+      L.control.zoom({
+        position: 'topright'
+      }).addTo(map);
+
+      // Add sample markers
+      const sampleDevices = [
+        {
+          id: 'dev1',
+          name: 'ESP32-CAM Front Door',
+          location: [48.1857, 16.3717],
+          status: 'active',
+          rating: 4.8,
+          lastValidation: '2023-05-15T14:30:00Z',
+          address: 'Stephansplatz 1, 1010 Wien'
+        },
+        {
+          id: 'dev2',
+          name: 'ESP32 Warehouse Gate',
+          location: [48.1927, 16.3577],
+          status: 'inactive',
+          rating: 3.6,
+          lastValidation: '2023-05-14T10:15:00Z',
+          address: 'Praterstraße 70, 1020 Wien'
+        },
+        {
+          id: 'dev3',
+          name: 'ESP32 Back Garden',
+          location: [48.1747, 16.3847],
+          status: 'active',
+          rating: 4.2,
+          lastValidation: '2023-05-16T09:30:00Z',
+          address: 'Landstraßer Hauptstraße 2, 1030 Wien'
+        }
+      ];
+
+      // Create custom markers for active and inactive devices
+      const activeIcon = L.divIcon({
+        className: 'custom-marker active',
+        html: `<div class="w-6 h-6 bg-primary rounded-full flex items-center justify-center shadow-md">
+                <span class="text-primary-foreground"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></span>
+               </div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 24],
+        popupAnchor: [0, -24]
+      });
+
+      const inactiveIcon = L.divIcon({
+        className: 'custom-marker inactive',
+        html: `<div class="w-6 h-6 bg-muted rounded-full flex items-center justify-center shadow-md">
+                <span class="text-muted-foreground"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></span>
+               </div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 24],
+        popupAnchor: [0, -24]
+      });
+
+      // Add markers to map
+      sampleDevices.forEach(device => {
+        const marker = L.marker(device.location, {
+          icon: device.status === 'active' ? activeIcon : inactiveIcon,
+          title: device.name
+        }).addTo(map);
+
+        // Create popup content
+        const popupContent = document.createElement('div');
+        popupContent.className = 'device-popup';
+        popupContent.innerHTML = `
+          <div class="text-sm">
+            <h3 class="font-bold text-base">${device.name}</h3>
+            <div class="flex items-center mt-1">
+              <div class="flex items-center text-amber-500">
+                ${Array.from({ length: 5 }, (_, i) => `
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="${i < Math.floor(device.rating) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                  </svg>
+                `).join('')}
+                <span class="ml-1">${device.rating.toFixed(1)}</span>
+              </div>
+              <span class="ml-2 px-2 py-0.5 rounded-full text-xs ${device.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
+                ${device.status}
+              </span>
+            </div>
+            <p class="text-muted-foreground mt-2">
+              <strong>Address:</strong> ${device.address}
+            </p>
+            <p class="text-muted-foreground">
+              <strong>Last Validation:</strong> ${new Date(device.lastValidation).toLocaleString()}
+            </p>
+            <div class="mt-2">
+              <h4 class="font-semibold">Recent Validations</h4>
+              <ul class="text-xs mt-1 space-y-1">
+                ${Array.from({ length: 3 }, (_, i) => {
+                  const date = new Date(device.lastValidation);
+                  date.setHours(date.getHours() - i * 2);
+                  return `<li>${date.toLocaleString()} - Success</li>`;
+                }).join('')}
+              </ul>
+            </div>
+            <button class="mt-3 px-2 py-1 bg-primary text-primary-foreground rounded-md text-xs w-full">View Full History</button>
+          </div>
+        `;
+
+        marker.bindPopup(popupContent, {
+          maxWidth: 300,
+          className: 'device-popup-container z-50' // Ensure high z-index for popups
         });
-
-        // Add zoom control to bottom-right
-        window.L.control.zoom({
-          position: 'bottomright'
-        }).addTo(leafletMap.current);
-
-        // Add tile layer
-        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(leafletMap.current);
-
-        // Add device markers
-        addDeviceMarkers();
-        
-        // Update nearby device stats
-        calculateNearbyDevices(viennaCoordinates);
-        
-        setMapLoaded(true);
-      }
-    };
-
-    const addDeviceMarkers = () => {
-      mockDevices.forEach(device => {
-        const marker = createMarker(device);
-        marker.addTo(leafletMap.current);
-      });
-    };
-
-    const createMarker = (device: Device) => {
-      const color = device.status === 'active' ? '#2A9D8F' : '#94A3B8';
-      
-      const markerIcon = window.L.divIcon({
-        html: `
-          <div class="relative flex items-center justify-center">
-            <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M18 3C12.5 3 8 7.5 8 13C8 15.4 8.8 17.5 10.2 19.2L18 30L25.8 19.2C27.2 17.5 28 15.4 28 13C28 7.5 23.5 3 18 3Z" fill="${color}" stroke="white" stroke-width="2"/>
-              <circle cx="18" cy="13" r="4.5" fill="white"/>
-            </svg>
-          </div>
-        `,
-        className: '',
-        iconSize: [36, 36],
-        iconAnchor: [18, 36],
-        popupAnchor: [0, -36]
       });
 
-      const marker = window.L.marker(device.location, { icon: markerIcon });
-      
-      const popupContent = `
-        <div class="p-3 max-w-xs">
-          <h3 class="text-lg font-semibold mb-1">${device.name}</h3>
-          <div class="flex items-center mb-2">
-            <div class="flex items-center">
-              ${renderStars(device.rating)}
-            </div>
-            <span class="ml-1 text-sm">(${device.rating.toFixed(1)})</span>
-          </div>
-          <p class="text-sm mb-2">${device.address}</p>
-          <div class="grid grid-cols-2 gap-2 text-sm mb-2">
-            <div>
-              <span class="font-medium">Status:</span> 
-              <span class="${device.status === 'active' ? 'text-green-600' : 'text-gray-500'}">${device.status}</span>
-            </div>
-            <div>
-              <span class="font-medium">QR Refresh:</span> ${device.qrRefreshTime}s
-            </div>
-            <div>
-              <span class="font-medium">Max Validations:</span> ${device.maxValidations}
-            </div>
-          </div>
-          <div class="border-t border-gray-200 pt-2 mb-2">
-            <h4 class="font-medium mb-1">Recent Validations</h4>
-            <ul class="space-y-1 text-xs">
-              ${device.validations.slice(0, 3).map(v => `
-                <li class="flex justify-between">
-                  <span>${new Date(v.timestamp).toLocaleString()}</span>
-                  <span class="${v.status === 'success' ? 'text-green-600' : 'text-red-600'}">${v.status}</span>
-                </li>
-              `).join('')}
-            </ul>
-          </div>
-          <button class="mt-2 text-sm text-primary hover:underline">View Details</button>
-        </div>
-      `;
-      
-      marker.bindPopup(popupContent);
-      return marker;
-    };
+      // Set nearby devices count (would normally be calculated based on user location)
+      setNearbyDevices(sampleDevices.filter(d => d.status === 'active').length);
 
-    const renderStars = (rating: number) => {
-      const fullStars = Math.floor(rating);
-      const halfStar = rating % 1 >= 0.5;
-      const emptyStars = 5 - fullStars - (halfStar ? 1 : 0);
-      
-      return `
-        <div class="flex">
-          ${Array(fullStars).fill(`<svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>`).join('')}
-          ${halfStar ? `<svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" clip-path="inset(0 50% 0 0)"></path></svg>` : ''}
-          ${Array(emptyStars).fill(`<svg class="w-4 h-4 text-gray-300" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>`).join('')}
-        </div>
-      `;
-    };
+      // Calculate average rating
+      setAverageRating(
+        sampleDevices.reduce((acc, curr) => acc + curr.rating, 0) / sampleDevices.length
+      );
 
-    loadLeaflet();
-    
-    return () => {
-      if (leafletMap.current) {
-        leafletMap.current.remove();
-        leafletMap.current = null;
-      }
-    };
+      // Clean up function
+      return () => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.remove();
+          mapInstanceRef.current = null;
+        }
+      };
+    }
   }, []);
 
-  const calculateNearbyDevices = (location: [number, number]) => {
-    if (!window.L) return;
-    
-    const userLatLng = window.L.latLng(location[0], location[1]);
-    let count = 0;
-    let ratingSum = 0;
-    
-    mockDevices.forEach(device => {
-      const deviceLatLng = window.L.latLng(device.location[0], device.location[1]);
-      const distanceInMeters = userLatLng.distanceTo(deviceLatLng);
-      
-      if (distanceInMeters <= 1000) {
-        count++;
-        ratingSum += device.rating;
-      }
-    });
-    
-    setNearbyDevices(count);
-    setAverageRating(count > 0 ? parseFloat((ratingSum / count).toFixed(1)) : 0);
-  };
-
-  const handleUserLocation = () => {
-    if (!navigator.geolocation) {
-      toast({
-        title: "Geolocation Error",
-        description: "Geolocation is not supported by your browser",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    toast({
-      title: "Finding your location...",
-      description: "Please wait while we locate your position",
-    });
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        const userCoords: [number, number] = [latitude, longitude];
-        
-        setUserLocation(userCoords);
-        
-        if (leafletMap.current) {
-          leafletMap.current.setView(userCoords, 15);
-          
-          // Add a marker for user location if it doesn't exist
-          if (window.L) {
-            // Remove existing user marker if any
-            leafletMap.current.eachLayer((layer: any) => {
-              if (layer.options && layer.options.isUserMarker) {
-                leafletMap.current.removeLayer(layer);
-              }
-            });
-            
-            // Add new user marker
-            const userMarker = window.L.circleMarker(userCoords, {
-              radius: 8,
-              fillColor: '#3B82F6',
-              color: '#FFFFFF',
-              weight: 2,
-              opacity: 1,
-              fillOpacity: 0.8,
-              isUserMarker: true
-            });
-            
-            userMarker.addTo(leafletMap.current);
-          }
-          
-          calculateNearbyDevices(userCoords);
-          
-          toast({
-            title: "Location found",
-            description: "Map centered to your current location",
-          });
+  const handleLocateMe = () => {
+    if (mapInstanceRef.current && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        position => {
+          const { latitude, longitude } = position.coords;
+          mapInstanceRef.current.setView([latitude, longitude], 15);
+        },
+        error => {
+          console.error('Error getting current location:', error);
         }
-      },
-      (error) => {
-        toast({
-          title: "Geolocation Error",
-          description: `Failed to get your location: ${error.message}`,
-          variant: "destructive"
-        });
-      }
-    );
+      );
+    }
   };
 
   return (
-    <div className="relative h-screen-minus-nav mt-16">
-      <div 
-        ref={mapRef} 
-        className="w-full h-full"
-        aria-label="Interactive map showing device locations"
-      ></div>
-      
-      {/* Floating controls panel */}
-      <div className="absolute bottom-4 right-4 z-10 flex flex-col space-y-2">
-        <Button 
-          variant="default" 
-          size="sm"
-          className="shadow-md flex items-center space-x-1"
-          onClick={handleUserLocation}
-          aria-label="Center map on your location"
-        >
-          <Navigation size={16} className="mr-1" />
-          <span>My Location</span>
-        </Button>
-        
-        <Card className="p-3 shadow-md w-60 bg-card/95 backdrop-blur-sm">
-          <div className="flex items-center space-x-2 mb-2">
-            <Info size={16} className="text-primary" />
-            <h3 className="font-semibold">Nearby Statistics</h3>
-          </div>
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between">
-              <span>Devices within 1km:</span>
-              <span className="font-medium">{nearbyDevices}</span>
+    <div className="relative h-screen w-full pt-16 bg-background">
+      {/* Map container - lower z-index to ensure UI elements appear above */}
+      <div ref={mapRef} className="h-full w-full" style={{ zIndex: 10 }}></div>
+
+      {/* Control panel - increased z-index to appear above map */}
+      <div className="absolute bottom-6 right-6 z-20 flex flex-col space-y-2">
+        <Card className="w-full sm:w-auto shadow-lg">
+          <CardContent className="p-4">
+            <div className="flex flex-col space-y-3">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="font-semibold">Nearby Devices</h3>
+                  <div className="flex items-center mt-1">
+                    <Badge variant="secondary">{nearbyDevices} within 1km</Badge>
+                  </div>
+                </div>
+                <Button size="sm" variant="outline" onClick={handleLocateMe}>
+                  <Navigation className="h-4 w-4 mr-1" />
+                  Locate Me
+                </Button>
+              </div>
+              <div className="flex items-center mt-1">
+                <Star className="h-4 w-4 text-amber-500 mr-1" />
+                <span className="text-sm">Average Rating: {averageRating.toFixed(1)}/5.0</span>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span>Average Rating:</span>
-              <span className="font-medium">{averageRating > 0 ? averageRating : 'N/A'}</span>
-            </div>
-          </div>
+          </CardContent>
         </Card>
+        <Button className="shadow-lg">
+          <MapPin className="h-4 w-4 mr-2" />
+          Add Device Here
+        </Button>
       </div>
     </div>
   );

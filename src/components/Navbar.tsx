@@ -82,9 +82,9 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Mobile navigation */}
+      {/* Mobile navigation - Increased z-index to be above map */}
       <div className={cn(
-        "md:hidden fixed inset-x-0 top-16 bg-card border-b border-border shadow-md transition-transform duration-200 ease-in-out",
+        "md:hidden fixed inset-x-0 top-16 bg-card border-b border-border shadow-md transition-transform duration-200 ease-in-out z-40",
         isOpen ? "translate-y-0" : "-translate-y-full"
       )}>
         <div className="flex flex-col p-4 space-y-2">

@@ -12,6 +12,7 @@ import ValidationsPage from "./pages/ValidationsPage";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 import { useState } from "react";
+import "./components/map-styles.css";
 
 const App = () => {
   // Create a new QueryClient instance inside the component
@@ -41,4 +42,3 @@ const App = () => {
 };
 
 export default App;
-

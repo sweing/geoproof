@@ -1,0 +1,53 @@
+
+/* Z-index fixes for Leaflet */
+.leaflet-pane {
+  z-index: 10;
+}
+
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 20;
+}
+
+.leaflet-popup {
+  z-index: 25;
+}
+
+/* Custom popup styling */
+.device-popup-container {
+  margin-bottom: 70px; /* Add some margin to popups for better visibility */
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.leaflet-popup-content {
+  margin: 12px 16px;
+  min-width: 200px;
+}
+
+/* Ensure page respects the navbar height */
+body {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+.h-screen-minus-nav {
+  height: calc(100vh - 4rem);
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  .leaflet-control-container .leaflet-top {
+    top: 1rem;
+  }
+  
+  .leaflet-control-container .leaflet-right {
+    right: 1rem;
+  }
+  
+  .device-popup-container {
+    max-width: 90vw !important;
+  }
+}
