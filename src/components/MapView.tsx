@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { MapPin, Navigation, Info, Star } from "lucide-react";
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { toast } from "@/components/ui/use-toast";
 
 // Fix for Leaflet icon issues
 delete L.Icon.Default.prototype._getIconUrl;
@@ -20,6 +20,27 @@ const MapView = () => {
   const mapInstanceRef = useRef(null);
   const [nearbyDevices, setNearbyDevices] = useState(0);
   const [averageRating, setAverageRating] = useState(4.2);
+  const [userLocation, setUserLocation] = useState(null);
+
+  // Create marker icon based on device status
+  const createMarkerIcon = (status) => {
+    const color = status === 'active' ? '#2A9D8F' : '#94A3B8';
+    
+    return L.divIcon({
+      html: `
+        <div class="relative flex items-center justify-center">
+          <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18 3C12.5 3 8 7.5 8 13C8 15.4 8.8 17.5 10.2 19.2L18 30L25.8 19.2C27.2 17.5 28 15.4 28 13C28 7.5 23.5 3 18 3Z" fill="${color}" stroke="white" stroke-width="2"/>
+            <circle cx="18" cy="13" r="4.5" fill="white"/>
+          </svg>
+        </div>
+      `,
+      className: '',
+      iconSize: [36, 36],
+      iconAnchor: [18, 36],
+      popupAnchor: [0, -36]
+    });
+  };
 
   useEffect(() => {
     if (mapRef.current && !mapInstanceRef.current) {
@@ -74,31 +95,10 @@ const MapView = () => {
         }
       ];
 
-      // Create custom markers for active and inactive devices
-      const activeIcon = L.divIcon({
-        className: 'custom-marker active',
-        html: `<div class="w-6 h-6 bg-primary rounded-full flex items-center justify-center shadow-md">
-                <span class="text-primary-foreground"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></span>
-               </div>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 24],
-        popupAnchor: [0, -24]
-      });
-
-      const inactiveIcon = L.divIcon({
-        className: 'custom-marker inactive',
-        html: `<div class="w-6 h-6 bg-muted rounded-full flex items-center justify-center shadow-md">
-                <span class="text-muted-foreground"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></span>
-               </div>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 24],
-        popupAnchor: [0, -24]
-      });
-
       // Add markers to map
       sampleDevices.forEach(device => {
         const marker = L.marker(device.location, {
-          icon: device.status === 'active' ? activeIcon : inactiveIcon,
+          icon: createMarkerIcon(device.status),
           title: device.name
         }).addTo(map);
 
@@ -143,11 +143,11 @@ const MapView = () => {
 
         marker.bindPopup(popupContent, {
           maxWidth: 300,
-          className: 'device-popup-container z-50' // Ensure high z-index for popups
+          className: 'device-popup-container z-50'
         });
       });
 
-      // Set nearby devices count (would normally be calculated based on user location)
+      // Set nearby devices count
       setNearbyDevices(sampleDevices.filter(d => d.status === 'active').length);
 
       // Calculate average rating
@@ -166,25 +166,72 @@ const MapView = () => {
   }, []);
 
   const handleLocateMe = () => {
-    if (mapInstanceRef.current && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        position => {
-          const { latitude, longitude } = position.coords;
-          mapInstanceRef.current.setView([latitude, longitude], 15);
-        },
-        error => {
-          console.error('Error getting current location:', error);
-        }
-      );
+    if (!navigator.geolocation) {
+      toast({
+        title: "Geolocation Error",
+        description: "Geolocation is not supported by your browser",
+        variant: "destructive"
+      });
+      return;
     }
+
+    toast({
+      title: "Finding your location...",
+      description: "Please wait while we locate your position",
+    });
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        const userCoords = [latitude, longitude];
+        
+        setUserLocation(userCoords);
+        
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.setView(userCoords, 15);
+          
+          // Remove existing user marker if any
+          mapInstanceRef.current.eachLayer((layer) => {
+            if (layer.options && layer.options.isUserMarker) {
+              mapInstanceRef.current.removeLayer(layer);
+            }
+          });
+          
+          // Add new user marker
+          const userMarker = L.circleMarker(userCoords, {
+            radius: 8,
+            fillColor: '#3B82F6',
+            color: '#FFFFFF',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.8,
+            isUserMarker: true
+          });
+          
+          userMarker.addTo(mapInstanceRef.current);
+          
+          toast({
+            title: "Location found",
+            description: "Map centered to your current location",
+          });
+        }
+      },
+      (error) => {
+        toast({
+          title: "Geolocation Error",
+          description: `Failed to get your location: ${error.message}`,
+          variant: "destructive"
+        });
+      }
+    );
   };
 
   return (
     <div className="fixed inset-0 pt-16 pb-[env(safe-area-inset-bottom)]">
-      {/* Map container - lower z-index to ensure UI elements appear above */}
+      {/* Map container */}
       <div ref={mapRef} className="h-full w-full" style={{ zIndex: 10 }}></div>
 
-      {/* Control panel - increased z-index to appear above map */}
+      {/* Control panel */}
       <div className="absolute bottom-6 right-6 z-20 flex flex-col space-y-2">
         <Card className="w-full sm:w-auto shadow-lg">
           <CardContent className="p-4">
@@ -208,10 +255,6 @@ const MapView = () => {
             </div>
           </CardContent>
         </Card>
-        {/* <Button className="shadow-lg">
-          <MapPin className="h-4 w-4 mr-2" />
-          Add Device Here
-        </Button> */}
       </div>
     </div>
   );

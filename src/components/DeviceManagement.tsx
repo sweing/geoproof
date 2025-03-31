@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,8 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Smartphone, Plus, Upload, Download, Edit2 } from "lucide-react";
+import { Smartphone, Plus, Upload, Download, Edit2, MapPin } from "lucide-react";
 import { toast } from '@/hooks/use-toast';
+
+// Declare Leaflet types
+declare global {
+  interface Window {
+    L: any;
+  }
+}
 
 const DeviceManagement = () => {
   const [devices, setDevices] = useState([
@@ -18,6 +24,7 @@ const DeviceManagement = () => {
       refreshTime: 60,
       maxValidations: 5,
       location: { lat: 48.1857, lng: 16.3717 },
+      address: "Stephansplatz 1, 1010 Wien",
       lastValidation: "2023-05-15T14:30:00Z",
       status: "active",
       image: "https://placehold.co/100x100"
@@ -29,6 +36,7 @@ const DeviceManagement = () => {
       refreshTime: 120,
       maxValidations: 10,
       location: { lat: 48.1927, lng: 16.3577 },
+      address: "Warehouse Entrance, 1020 Wien",
       lastValidation: "2023-05-14T10:15:00Z",
       status: "inactive",
       image: "https://placehold.co/100x100"
@@ -41,10 +49,103 @@ const DeviceManagement = () => {
     description: "",
     refreshTime: "60",
     maxValidations: 5,
-    location: { lat: 48.1887, lng: 16.3767 }
+    location: { lat: 48.1887, lng: 16.3767 },
+    address: ""
   });
   
   const editSectionRef = useRef(null);
+  const locationMapRef = useRef(null);
+  const leafletMap = useRef(null);
+  const locationMarker = useRef(null);
+
+  // Initialize map when form is shown
+  useEffect(() => {
+    if (locationMapRef.current) {
+      initMap();
+    }
+    
+    return () => {
+      if (leafletMap.current) {
+        leafletMap.current.remove();
+        leafletMap.current = null;
+      }
+    };
+  }, [editingDevice]);
+
+  const initMap = () => {
+    if (!window.L || !locationMapRef.current) {
+      // Load Leaflet if it's not available
+      if (!window.L) {
+        const leafletScript = document.createElement('script');
+        leafletScript.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        leafletScript.async = true;
+        
+        // Also load Leaflet CSS
+        const leafletCSS = document.createElement('link');
+        leafletCSS.rel = 'stylesheet';
+        leafletCSS.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(leafletCSS);
+        
+        leafletScript.onload = () => {
+          if (locationMapRef.current) createMap();
+        };
+        document.body.appendChild(leafletScript);
+      }
+      return;
+    }
+    
+    createMap();
+  };
+  
+  const createMap = () => {
+    if (!window.L || !locationMapRef.current) return;
+    
+    // Initialize map
+    leafletMap.current = window.L.map(locationMapRef.current).setView(
+      [formData.location.lat, formData.location.lng], 
+      13
+    );
+    
+    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(leafletMap.current);
+    
+    // Add draggable marker
+    locationMarker.current = window.L.marker(
+      [formData.location.lat, formData.location.lng], 
+      { draggable: true }
+    ).addTo(leafletMap.current);
+    
+    // Update coordinates when marker is dragged
+    locationMarker.current.on('dragend', async (e) => {
+      const marker = e.target;
+      const position = marker.getLatLng();
+      const newLocation = { lat: position.lat, lng: position.lng };
+      
+      // Get address from coordinates using Nominatim
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${newLocation.lat}&lon=${newLocation.lng}&zoom=18&addressdetails=1`
+        );
+        const data = await response.json();
+        
+        if (data && data.display_name) {
+          setFormData(prev => ({
+            ...prev,
+            location: newLocation,
+            address: data.display_name
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching address:', error);
+        setFormData(prev => ({
+          ...prev,
+          location: newLocation,
+          address: `Lat: ${newLocation.lat.toFixed(4)}, Lng: ${newLocation.lng.toFixed(4)}`
+        }));
+      }
+    });
+  };
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -57,7 +158,8 @@ const DeviceManagement = () => {
       description: device.description,
       refreshTime: device.refreshTime.toString(),
       maxValidations: device.maxValidations,
-      location: device.location
+      location: device.location,
+      address: device.address
     });
     
     // Scroll to edit section on mobile
@@ -75,9 +177,42 @@ const DeviceManagement = () => {
       description: "",
       refreshTime: "60",
       maxValidations: 5,
-      location: { lat: 48.1887, lng: 16.3767 }
+      location: { lat: 48.1887, lng: 16.3767 },
+      address: ""
     });
   };
+
+  const handleDownloadFirmware = () => {
+    // In a real app, this would generate actual firmware
+    // For demo purposes, create a mock text file
+    const mockFirmware = `
+      # ESP32 GeoProof Firmware Configuration
+      # Generated for device: ${newDeviceData.name}
+      DEVICE_ID=${newDeviceData.id}
+      DEVICE_KEY=${newDeviceData.key}
+      QR_REFRESH_TIME=${formData.qrRefreshTime}
+      MAX_VALIDATIONS=${formData.maxValidations}
+      LATITUDE=${formData.location[0]}
+      LONGITUDE=${formData.location[1]}
+      # End of configuration
+    `;
+    
+    const blob = new Blob([mockFirmware], {type: 'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `geoProof_${newDeviceData.id}_firmware.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast({
+      title: "Firmware Downloaded",
+      description: "Upload this to your ESP32 device to complete setup",
+    });
+  };
+  
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -86,7 +221,13 @@ const DeviceManagement = () => {
       // Update existing device
       const updatedDevices = devices.map(device => 
         device.id === editingDevice.id 
-          ? { ...device, ...formData, refreshTime: parseInt(formData.refreshTime) } 
+          ? { 
+              ...device, 
+              ...formData, 
+              refreshTime: parseInt(formData.refreshTime),
+              location: formData.location,
+              address: formData.address
+            } 
           : device
       );
       setDevices(updatedDevices);
@@ -101,7 +242,11 @@ const DeviceManagement = () => {
         description: "New firmware is ready for download.",
         variant: "default",
         action: (
-          <Button variant="outline" size="sm" onClick={() => console.log("Download firmware")}>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => handleDownloadFirmware(editingDevice.id)}
+          >
             <Download className="mr-2 h-4 w-4" />
             Download
           </Button>
@@ -124,11 +269,31 @@ const DeviceManagement = () => {
       });
       
       // Show device ID and key
+      const deviceKey = Math.random().toString(36).substring(2, 10);
       toast({
         title: "Device Credentials",
-        description: `Device ID: ${newDevice.id} | Key: ${Math.random().toString(36).substring(2, 10)}`,
+        description: `Device ID: ${newDevice.id} | Key: ${deviceKey}`,
         duration: 10000,
       });
+
+      // Show firmware download notification
+      setTimeout(() => {
+        toast({
+          title: "Firmware Generated",
+          description: "New firmware is ready for download.",
+          variant: "default",
+          action: (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => handleDownloadFirmware(newDevice.id)}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Download
+            </Button>
+          ),
+        });
+      }, 1500);
     }
     
     // Reset form
@@ -137,7 +302,8 @@ const DeviceManagement = () => {
       description: "",
       refreshTime: "60",
       maxValidations: 5,
-      location: { lat: 48.1887, lng: 16.3767 }
+      location: { lat: 48.1887, lng: 16.3767 },
+      address: ""
     });
     setEditingDevice(null);
   };
@@ -175,6 +341,15 @@ const DeviceManagement = () => {
                       <p className="text-sm text-muted-foreground">
                         Last validation: {new Date(device.lastValidation).toLocaleString()}
                       </p>
+                      <div className="mt-1 space-y-1">
+                        <p className="text-xs flex items-start">
+                          <MapPin className="h-3 w-3 mr-1 mt-0.5 flex-shrink-0" />
+                          <span>{device.address}</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Coordinates: {device.location.lat.toFixed(4)}, {device.location.lng.toFixed(4)}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -287,8 +462,18 @@ const DeviceManagement = () => {
                 
                 <div className="space-y-2">
                   <Label>Device Location</Label>
-                  <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
-                    <p className="text-muted-foreground text-sm">Map Location Picker Goes Here</p>
+                  <div 
+                    ref={locationMapRef} 
+                    className="h-48 rounded-md overflow-hidden border"
+                  ></div>
+                  <div className="mt-2 space-y-1">
+                    <p className="text-sm flex items-start">
+                      <MapPin className="h-3 w-3 mr-1 mt-0.5 flex-shrink-0" />
+                      <span>{formData.address || "No address selected"}</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Coordinates: {formData.location.lat.toFixed(4)}, {formData.location.lng.toFixed(4)}
+                    </p>
                   </div>
                 </div>
                 

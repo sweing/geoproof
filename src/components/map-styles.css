@@ -33,26 +33,13 @@
   margin: 12px 16px;
   min-width: 200px;
 }
-html {
-  height: 100%;
-  min-height: 100vh;
-  overflow: hidden;
-}
+
 /* Ensure page respects the navbar height */
 /* body {
   padding-top: env(safe-area-inset-top, 0);
   min-height: 100%;
   height: 100%;
 } */
-
-body {
-  padding: 0px;
-  margin: 0px;
-  /* align-items: center;
-  justify-content: center; */
-  min-height: 100%;
-  height: 100%;
-}
 
 .h-screen-minus-nav {
   height: calc(100vh - 4rem);
