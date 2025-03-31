@@ -409,6 +409,9 @@ const DeviceManagement = () => {
                               <MapPin size={12} className="mr-1 text-muted-foreground" />
                               <span className="truncate">{device.address}</span>
                             </div>
+                            <div className="text-xs text-muted-foreground ml-5 mt-1">
+                              Coordinates: {device.location[0].toFixed(4)}, {device.location[1].toFixed(4)}
+                            </div>
                             <div className="flex items-center text-xs mt-1">
                               <Clock size={12} className="mr-1 text-muted-foreground" />
                               <span>
@@ -607,6 +610,9 @@ const DeviceManagement = () => {
                         </div>
                         <p className="ml-5 mt-1 text-sm">
                           {formData.address || 'Address will appear here after selecting location'}
+                        </p>
+                        <p className="text-xs text-muted-foreground ml-5 mt-1">
+                          Coordinates: {formData.location[0].toFixed(4)}, {formData.location[1].toFixed(4)}
                         </p>
                       </div>
                     </div>
