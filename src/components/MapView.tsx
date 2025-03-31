@@ -180,7 +180,7 @@ const MapView = () => {
   };
 
   return (
-    <div className="relative h-screen w-full pt-16 bg-background">
+    <div className="fixed inset-0 pt-16 pb-[env(safe-area-inset-bottom)]">
       {/* Map container - lower z-index to ensure UI elements appear above */}
       <div ref={mapRef} className="h-full w-full" style={{ zIndex: 10 }}></div>
 
@@ -208,10 +208,10 @@ const MapView = () => {
             </div>
           </CardContent>
         </Card>
-        <Button className="shadow-lg">
+        {/* <Button className="shadow-lg">
           <MapPin className="h-4 w-4 mr-2" />
           Add Device Here
-        </Button>
+        </Button> */}
       </div>
     </div>
   );

@@ -15,7 +15,7 @@
 
 /* Custom popup styling */
 .device-popup-container {
-  margin-bottom: 70px; /* Add some margin to popups for better visibility */
+  margin-bottom: 30px; /* Add some margin to popups for better visibility */
 }
 
 .leaflet-popup-content-wrapper {
@@ -23,14 +23,35 @@
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
+.leaflet-cointainer {
+  height: 100%;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
 .leaflet-popup-content {
   margin: 12px 16px;
   min-width: 200px;
 }
-
+html {
+  height: 100%;
+  min-height: 100vh;
+  overflow: hidden;
+}
 /* Ensure page respects the navbar height */
-body {
+/* body {
   padding-top: env(safe-area-inset-top, 0);
+  min-height: 100%;
+  height: 100%;
+} */
+
+body {
+  padding: 0px;
+  margin: 0px;
+  /* align-items: center;
+  justify-content: center; */
+  min-height: 100%;
+  height: 100%;
 }
 
 .h-screen-minus-nav {

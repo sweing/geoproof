@@ -1,18 +1,21 @@
-
 import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { MapPin, Smartphone, CheckSquare, Settings, Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const location = useLocation();
+
+  const navigation = [
+    { name: 'Map', href: '/', icon: MapPin },
+    { name: 'My Devices', href: '/devices', icon: Smartphone },
+    { name: 'Validations', href: '/validations', icon: CheckSquare },
+    { name: 'Settings', href: '/settings', icon: Settings },
+  ];
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);
-  };
-
-  const closeMenu = () => {
-    setIsOpen(false);
   };
 
   return (
@@ -23,6 +26,29 @@ const Navbar = () => {
           <span className="text-lg font-semibold">GeoProof</span>
         </div>
 
+        {/* Desktop navigation */}
+        <div className="hidden md:flex items-center space-x-4">
+          {navigation.map((item) => {
+            const Icon = item.icon;
+            const isActive = location.pathname === item.href;
+            
+            return (
+              <NavLink
+                key={item.name}
+                to={item.href}
+                className={cn(
+                  "px-3 py-2 rounded-md flex items-center space-x-1 transition-colors",
+                  isActive ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                )}
+                end={item.href === '/'}
+              >
+                <Icon size={18} />
+                <span>{item.name}</span>
+              </NavLink>
+            );
+          })}
+        </div>
+
         {/* Mobile menu button */}
         <button 
           className="md:hidden p-2 rounded-md hover:bg-muted"
@@ -31,112 +57,34 @@ const Navbar = () => {
         >
           {isOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
-
-        {/* Desktop navigation */}
-        <div className="hidden md:flex items-center space-x-4">
-          <NavLink 
-            to="/" 
-            className={({ isActive }) => 
-              cn("px-3 py-2 rounded-md flex items-center space-x-1 transition-colors", 
-                isActive ? "bg-primary/10 text-primary" : "hover:bg-muted"
-              )
-            }
-            end
-          >
-            <MapPin size={18} />
-            <span>Map</span>
-          </NavLink>
-          <NavLink 
-            to="/devices" 
-            className={({ isActive }) => 
-              cn("px-3 py-2 rounded-md flex items-center space-x-1 transition-colors", 
-                isActive ? "bg-primary/10 text-primary" : "hover:bg-muted"
-              )
-            }
-          >
-            <Smartphone size={18} />
-            <span>My Devices</span>
-          </NavLink>
-          <NavLink 
-            to="/validations" 
-            className={({ isActive }) => 
-              cn("px-3 py-2 rounded-md flex items-center space-x-1 transition-colors", 
-                isActive ? "bg-primary/10 text-primary" : "hover:bg-muted"
-              )
-            }
-          >
-            <CheckSquare size={18} />
-            <span>Validations</span>
-          </NavLink>
-          <NavLink 
-            to="/settings" 
-            className={({ isActive }) => 
-              cn("px-3 py-2 rounded-md flex items-center space-x-1 transition-colors", 
-                isActive ? "bg-primary/10 text-primary" : "hover:bg-muted"
-              )
-            }
-          >
-            <Settings size={18} />
-            <span>Settings</span>
-          </NavLink>
-        </div>
       </div>
 
-      {/* Mobile navigation - Increased z-index to be above map */}
+      {/* Mobile menu */}
       <div className={cn(
-        "md:hidden fixed inset-x-0 top-16 bg-card border-b border-border shadow-md transition-transform duration-200 ease-in-out z-40",
-        isOpen ? "translate-y-0" : "-translate-y-full"
+        "md:hidden bg-card border-b border-border transition-all duration-200 ease-in-out overflow-hidden",
+        isOpen ? "max-h-64" : "max-h-0 invisible opacity-0 border-b-0"
       )}>
-        <div className="flex flex-col p-4 space-y-2">
-          <NavLink 
-            to="/" 
-            className={({ isActive }) => 
-              cn("px-3 py-2 rounded-md flex items-center space-x-2 transition-colors", 
-                isActive ? "bg-primary/10 text-primary" : "hover:bg-muted"
-              )
-            }
-            onClick={closeMenu}
-            end
-          >
-            <MapPin size={20} />
-            <span>Map</span>
-          </NavLink>
-          <NavLink 
-            to="/devices" 
-            className={({ isActive }) => 
-              cn("px-3 py-2 rounded-md flex items-center space-x-2 transition-colors", 
-                isActive ? "bg-primary/10 text-primary" : "hover:bg-muted"
-              )
-            }
-            onClick={closeMenu}
-          >
-            <Smartphone size={20} />
-            <span>My Devices</span>
-          </NavLink>
-          <NavLink 
-            to="/validations" 
-            className={({ isActive }) => 
-              cn("px-3 py-2 rounded-md flex items-center space-x-2 transition-colors", 
-                isActive ? "bg-primary/10 text-primary" : "hover:bg-muted"
-              )
-            }
-            onClick={closeMenu}
-          >
-            <CheckSquare size={20} />
-            <span>Validations</span>
-          </NavLink>
-          <NavLink 
-            to="/settings" 
-            className={({ isActive }) => 
-              cn("px-3 py-2 rounded-md flex items-center space-x-2 transition-colors", 
-                isActive ? "bg-primary/10 text-primary" : "hover:bg-muted"
-              )
-            }
-            onClick={closeMenu}
-          >
-            <Settings size={20} />
-            <span>Settings</span>
-          </NavLink>
+        <div className="px-4 py-2 space-y-1">
+          {navigation.map((item) => {
+            const Icon = item.icon;
+            const isActive = location.pathname === item.href;
+            
+            return (
+              <NavLink
+                key={item.name}
+                to={item.href}
+                className={cn(
+                  "flex items-center px-3 py-3 rounded-md text-base font-medium transition-colors",
+                  isActive ? "bg-primary/10 text-primary" : "hover:bg-muted"
+                )}
+                onClick={toggleMenu}
+                end={item.href === '/'}
+              >
+                <Icon className="mr-3 h-5 w-5" />
+                {item.name}
+              </NavLink>
+            );
+          })}
         </div>
       </div>
     </nav>
