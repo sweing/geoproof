@@ -77,3 +77,25 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
+
+/* Dark mode tooltip styling */
+.dark .bb-tooltip {
+  background-color: #333333 !important;
+  border: 1px solid #555555 !important;
+  /* color: #ffffff !important; */
+}
+
+.dark .bb-tooltip th {
+  background-color: #444444 !important;
+  /* color: #ffffff !important; */
+}
+
+.dark .bb-tooltip td {
+  background-color: #444444 !important;
+  /* color: #ffffff !important; */
+}
+
+
+.dark .bb-tooltip .bb-tooltip-name {
+  color: #dddddd !important;
+}

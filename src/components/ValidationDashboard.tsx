@@ -1,5 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import bb, { bar, line } from 'billboard.js';
+import 'billboard.js/dist/theme/insight.css';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -26,7 +28,8 @@ const ValidationDashboard = () => {
   const [showScanner, setShowScanner] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasChartRef = useRef<HTMLCanvasElement>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const chartInstance = useRef<bb.Chart | null>(null);
   const scannerIntervalRef = useRef<number | null>(null);
   
   // Generate mock validation data
@@ -41,12 +44,108 @@ const ValidationDashboard = () => {
     }
   }, []);
   
-  // Draw chart when validations change
+  // Initialize and update chart when validations change
   useEffect(() => {
-    if (canvasChartRef.current) {
-      drawValidationChart();
+    if (!chartRef.current) return;
+
+    const dailyData = getDailyValidationData();
+    
+    if (!chartInstance.current) {
+      chartInstance.current = bb.generate({
+        bindto: chartRef.current,
+        data: {
+          columns: [
+            ['success', ...dailyData.map(d => d.success)],
+            ['failed', ...dailyData.map(d => d.failed)]
+          ],
+          type: bar(),
+          groups: [['success', 'failed']],
+          colors: {
+            success: '#2A9D8F',
+            failed: '#E76F51'
+          }
+        },
+        bar: {
+          width: {
+            ratio: 0.6
+          }
+        },
+        axis: {
+          x: {
+            type: 'category',
+            categories: dailyData.map(d => 
+              d.date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' }))
+          },
+          y: {
+            tick: {
+              count: 10
+            }
+          }
+        },
+        grid: {
+          y: {
+            show: true
+          }
+        },
+        legend: {
+          position: 'inset',
+          inset: {
+            anchor: 'top-right',
+            x: 20,
+            y: 10
+          }
+        },
+        tooltip: {
+          grouped: true
+        }
+      });
+    } else {
+      chartInstance.current.load({
+        columns: [
+          ['success', ...dailyData.map(d => d.success)],
+          ['failed', ...dailyData.map(d => d.failed)]
+        ],
+        categories: dailyData.map(d => 
+          d.date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' }))
+      });
     }
+
+    return () => {
+      if (chartInstance.current) {
+        chartInstance.current.destroy();
+        chartInstance.current = null;
+      }
+    };
   }, [validations]);
+
+  const getDailyValidationData = () => {
+    const last7Days = Array.from({length: 7}, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }).reverse();
+    
+    return last7Days.map(day => {
+      const nextDay = new Date(day);
+      nextDay.setDate(nextDay.getDate() + 1);
+      
+      const dayValidations = validations.filter(v => {
+        const vDate = new Date(v.timestamp);
+        return vDate >= day && vDate < nextDay;
+      });
+      
+      const successCount = dayValidations.filter(v => v.status === 'success').length;
+      const failCount = dayValidations.filter(v => v.status === 'failed').length;
+      
+      return {
+        date: day,
+        success: successCount,
+        failed: failCount,
+        total: successCount + failCount
+      };
+    });
+  };
   
   // Handle camera access for QR scanner
   useEffect(() => {
@@ -114,136 +213,6 @@ const ValidationDashboard = () => {
     );
   };
   
-  const drawValidationChart = () => {
-    const canvas = canvasChartRef.current;
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    // Clear the canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Group validations by day
-    const last7Days = Array.from({length: 7}, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      date.setHours(0, 0, 0, 0);
-      return date;
-    }).reverse();
-    
-    const dailyData = last7Days.map(day => {
-      const nextDay = new Date(day);
-      nextDay.setDate(nextDay.getDate() + 1);
-      
-      const dayValidations = validations.filter(v => {
-        const vDate = new Date(v.timestamp);
-        return vDate >= day && vDate < nextDay;
-      });
-      
-      const successCount = dayValidations.filter(v => v.status === 'success').length;
-      const failCount = dayValidations.filter(v => v.status === 'failed').length;
-      
-      return {
-        date: day,
-        success: successCount,
-        failed: failCount,
-        total: successCount + failCount
-      };
-    });
-    
-    // Find max value for scaling
-    const maxValue = Math.max(...dailyData.map(d => d.total)) || 10;
-    
-    // Set canvas dimensions and styles
-    const width = canvas.width;
-    const height = canvas.height;
-    const padding = 40;
-    const barWidth = (width - padding * 2) / dailyData.length / 2;
-    const barSpacing = barWidth / 2;
-    
-    // Draw axes
-    ctx.beginPath();
-    ctx.strokeStyle = '#94a3b8';
-    ctx.lineWidth = 1;
-    ctx.moveTo(padding, padding / 2);
-    ctx.lineTo(padding, height - padding);
-    ctx.lineTo(width - padding, height - padding);
-    ctx.stroke();
-    
-    // Draw Y-axis labels
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#64748b';
-    ctx.font = '10px sans-serif';
-    
-    for (let i = 0; i <= 5; i++) {
-      const value = Math.ceil(maxValue / 5 * i);
-      const y = height - padding - (height - padding * 1.5) * (i / 5);
-      
-      ctx.fillText(value.toString(), padding - 5, y);
-      
-      // Draw horizontal grid line
-      ctx.beginPath();
-      ctx.strokeStyle = '#e2e8f0';
-      ctx.moveTo(padding, y);
-      ctx.lineTo(width - padding, y);
-      ctx.stroke();
-    }
-    
-    // Draw bars and X-axis labels
-    dailyData.forEach((data, index) => {
-      const x = padding + index * (barWidth * 2 + barSpacing * 2) + barSpacing;
-      
-      // Success bar
-      const successHeight = data.success / maxValue * (height - padding * 1.5);
-      ctx.fillStyle = '#2A9D8F';
-      ctx.fillRect(
-        x, 
-        height - padding - successHeight, 
-        barWidth, 
-        successHeight
-      );
-      
-      // Failed bar
-      const failedHeight = data.failed / maxValue * (height - padding * 1.5);
-      ctx.fillStyle = '#E76F51';
-      ctx.fillRect(
-        x + barWidth, 
-        height - padding - failedHeight, 
-        barWidth, 
-        failedHeight
-      );
-      
-      // X-axis label (date)
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillStyle = '#64748b';
-      const dateStr = data.date.toLocaleDateString(undefined, {
-        weekday: 'short',
-        day: 'numeric'
-      });
-      ctx.fillText(dateStr, x + barWidth / 2 + barSpacing / 2, height - padding + 5);
-    });
-    
-    // Draw legend
-    const legendY = 15;
-    const legendSpacing = 80;
-    
-    // Success legend
-    ctx.fillStyle = '#2A9D8F';
-    ctx.fillRect(width - padding - legendSpacing - 50, legendY, 10, 10);
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#64748b';
-    ctx.fillText('Success', width - padding - legendSpacing - 35, legendY + 5);
-    
-    // Failed legend
-    ctx.fillStyle = '#E76F51';
-    ctx.fillRect(width - padding - 50, legendY, 10, 10);
-    ctx.fillStyle = '#64748b';
-    ctx.fillText('Failed', width - padding - 35, legendY + 5);
-  };
   
   const startCamera = async () => {
     try {
@@ -452,12 +421,7 @@ const ValidationDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="w-full h-64">
-              <canvas 
-                ref={canvasChartRef} 
-                width={500} 
-                height={250}
-                className="w-full h-full"
-              ></canvas>
+              <div ref={chartRef} className="w-full h-full" />
             </div>
           </CardContent>
         </Card>
