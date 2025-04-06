@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { getDevices } from '@/lib/services/device';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,11 +18,14 @@ L.Icon.Default.mergeOptions({
 });
 
 const MapView = () => {
+  const [fullscreenImage, setFullscreenImage] = useState(null);
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const [nearbyDevices, setNearbyDevices] = useState(0);
-  const [averageRating, setAverageRating] = useState(4.2);
+  const [averageRating, setAverageRating] = useState(0);
   const [userLocation, setUserLocation] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Create marker icon based on device status
   const createMarkerIcon = (status) => {
@@ -42,6 +47,98 @@ const MapView = () => {
     });
   };
 
+  const addDeviceMarkers = (devices, map) => {
+    devices.forEach(device => {
+      const rating = device.lastValidation ? 4.2 : 5;
+      const marker = L.marker(device.location, {
+        icon: createMarkerIcon(device.status),
+        title: device.name
+      }).addTo(map);
+
+      const popupContent = document.createElement('div');
+      popupContent.className = 'device-popup';
+      popupContent.innerHTML = `
+        <div class="text-sm">
+          <h3 class="font-bold text-base">${device.name}</h3>
+          <div class="flex items-center mt-1">
+            <div class="flex items-center text-amber-500">
+              ${Array.from({ length: 5 }, (_, i) => `
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="${i < Math.floor(rating) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
+              `).join('')}
+              <span class="ml-1">${rating.toFixed(1)}</span>
+            </div>
+            <span class="ml-2 px-2 py-0.5 rounded-full text-xs ${device.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
+              ${device.status}
+            </span>
+          </div>
+          ${device.image ? `
+            <div class="mt-2">
+            <div class="float-right ml-4 mb-2 w-[100px] h-[100px] rounded-md overflow-hidden cursor-pointer hover:opacity-90 transition-opacity">
+                <img src="${device.image}" alt="${device.name}" class="w-full h-full object-cover" 
+                  onclick="window.dispatchEvent(new CustomEvent('imageClick', { detail: '${device.image}' }))" />
+            </div>
+              <p class="text-muted-foreground">
+                <strong>Description:</strong> ${device.description || 'No description'}
+              </p>
+              <p class="text-muted-foreground mt-2">
+                <strong>Address:</strong> ${device.address}
+              </p>
+            </div>
+          ` : `
+            <p class="text-muted-foreground mt-2">
+              <strong>Description:</strong> ${device.description || 'No description'}
+            </p>
+            <p class="text-muted-foreground">
+              <strong>Address:</strong> ${device.address}
+            </p>
+          `}
+          <p class="text-muted-foreground">
+            <strong>Registered by:</strong> ${device.owner || 'Unknown'}
+          </p>
+          <div class="grid grid-cols-2 gap-2 mt-2">
+            <div>
+              <p class="text-muted-foreground">
+                <strong>Max Validations:</strong> ${device.maxValidations}
+              </p>
+            </div>
+            <div>
+              <p class="text-muted-foreground">
+                <strong>Refresh Time:</strong> ${device.qrRefreshTime >= 60 ? 
+                  `${Math.floor(device.qrRefreshTime/60)} min` : `${device.qrRefreshTime} sec`}
+              </p>
+            </div>
+          </div>
+          <p class="text-muted-foreground">
+            <strong>Last Validation:</strong> ${device.lastValidation ? new Date(device.lastValidation).toLocaleString() : 'Never'}
+          </p>
+          <div class="mt-2">
+            <h4 class="font-semibold">Recent Validations</h4>
+            <ul class="text-xs mt-1 space-y-1">
+              ${device.lastValidation ? Array.from({ length: 3 }, (_, i) => {
+                const date = new Date(device.lastValidation);
+                date.setHours(date.getHours() - i * 2);
+                return `<li>${date.toLocaleString()} - Success</li>`;
+              }).join('') : 'No validations yet'}
+            </ul>
+          </div>
+          <button class="mt-3 px-2 py-1 bg-primary text-primary-foreground rounded-md text-xs w-full">View Full History</button>
+        </div>
+      `;
+
+      marker.bindPopup(popupContent, {
+        maxWidth: 300,
+        className: 'device-popup-container z-50'
+      });
+    });
+
+    setNearbyDevices(devices.filter(d => d.status === 'active').length);
+    const avgRating = devices.length > 0 ? 
+      devices.reduce((acc, curr) => acc + (curr.lastValidation ? 4.2 : 5), 0) / devices.length : 5;
+    setAverageRating(avgRating);
+  };
+
   useEffect(() => {
     if (mapRef.current && !mapInstanceRef.current) {
       // Initialize map
@@ -51,7 +148,6 @@ const MapView = () => {
         zoomControl: false
       });
 
-      // Set map instance to ref for later use
       mapInstanceRef.current = map;
 
       // Add OSM tile layer
@@ -59,103 +155,31 @@ const MapView = () => {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
       }).addTo(map);
 
-      // Add zoom control to top-right
-      L.control.zoom({
-        position: 'topright'
-      }).addTo(map);
+      // Add zoom control
+      L.control.zoom({ position: 'topright' }).addTo(map);
 
-      // Add sample markers
-      const sampleDevices = [
-        {
-          id: 'dev1',
-          name: 'ESP32-CAM Front Door',
-          location: [48.1857, 16.3717],
-          status: 'active',
-          rating: 4.8,
-          lastValidation: '2023-05-15T14:30:00Z',
-          address: 'Stephansplatz 1, 1010 Wien'
-        },
-        {
-          id: 'dev2',
-          name: 'ESP32 Warehouse Gate',
-          location: [48.1927, 16.3577],
-          status: 'inactive',
-          rating: 3.6,
-          lastValidation: '2023-05-14T10:15:00Z',
-          address: 'Praterstraße 70, 1020 Wien'
-        },
-        {
-          id: 'dev3',
-          name: 'ESP32 Back Garden',
-          location: [48.1747, 16.3847],
-          status: 'active',
-          rating: 4.2,
-          lastValidation: '2023-05-16T09:30:00Z',
-          address: 'Landstraßer Hauptstraße 2, 1030 Wien'
+      // Fetch and display devices
+      const fetchDevices = async () => {
+        try {
+          const devices = await getDevices();
+          addDeviceMarkers(devices, map);
+          setLoading(false);
+        } catch (err) {
+          setError(err.message);
+          setLoading(false);
+          // Only show error toast if it's not an auth-related error
+          if (!err.message.includes('No authentication token found')) {
+            toast({
+              title: "Error loading devices",
+              description: err.message,
+              variant: "destructive"
+            });
+          }
         }
-      ];
+      };
 
-      // Add markers to map
-      sampleDevices.forEach(device => {
-        const marker = L.marker(device.location, {
-          icon: createMarkerIcon(device.status),
-          title: device.name
-        }).addTo(map);
+      fetchDevices();
 
-        // Create popup content
-        const popupContent = document.createElement('div');
-        popupContent.className = 'device-popup';
-        popupContent.innerHTML = `
-          <div class="text-sm">
-            <h3 class="font-bold text-base">${device.name}</h3>
-            <div class="flex items-center mt-1">
-              <div class="flex items-center text-amber-500">
-                ${Array.from({ length: 5 }, (_, i) => `
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="${i < Math.floor(device.rating) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-                  </svg>
-                `).join('')}
-                <span class="ml-1">${device.rating.toFixed(1)}</span>
-              </div>
-              <span class="ml-2 px-2 py-0.5 rounded-full text-xs ${device.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
-                ${device.status}
-              </span>
-            </div>
-            <p class="text-muted-foreground mt-2">
-              <strong>Address:</strong> ${device.address}
-            </p>
-            <p class="text-muted-foreground">
-              <strong>Last Validation:</strong> ${new Date(device.lastValidation).toLocaleString()}
-            </p>
-            <div class="mt-2">
-              <h4 class="font-semibold">Recent Validations</h4>
-              <ul class="text-xs mt-1 space-y-1">
-                ${Array.from({ length: 3 }, (_, i) => {
-                  const date = new Date(device.lastValidation);
-                  date.setHours(date.getHours() - i * 2);
-                  return `<li>${date.toLocaleString()} - Success</li>`;
-                }).join('')}
-              </ul>
-            </div>
-            <button class="mt-3 px-2 py-1 bg-primary text-primary-foreground rounded-md text-xs w-full">View Full History</button>
-          </div>
-        `;
-
-        marker.bindPopup(popupContent, {
-          maxWidth: 300,
-          className: 'device-popup-container z-50'
-        });
-      });
-
-      // Set nearby devices count
-      setNearbyDevices(sampleDevices.filter(d => d.status === 'active').length);
-
-      // Calculate average rating
-      setAverageRating(
-        sampleDevices.reduce((acc, curr) => acc + curr.rating, 0) / sampleDevices.length
-      );
-
-      // Clean up function
       return () => {
         if (mapInstanceRef.current) {
           mapInstanceRef.current.remove();
@@ -192,7 +216,7 @@ const MapView = () => {
           
           // Remove existing user marker if any
           mapInstanceRef.current.eachLayer((layer) => {
-            if (layer.options && layer.options.isUserMarker) {
+            if (layer.options?.isUserMarker) {
               mapInstanceRef.current.removeLayer(layer);
             }
           });
@@ -206,9 +230,7 @@ const MapView = () => {
             opacity: 1,
             fillOpacity: 0.8,
             isUserMarker: true
-          });
-          
-          userMarker.addTo(mapInstanceRef.current);
+          }).addTo(mapInstanceRef.current);
           
           toast({
             title: "Location found",
@@ -226,12 +248,34 @@ const MapView = () => {
     );
   };
 
+  useEffect(() => {
+    const handleImageClick = (e) => {
+      setFullscreenImage(e.detail);
+    };
+
+    window.addEventListener('imageClick', handleImageClick);
+    return () => window.removeEventListener('imageClick', handleImageClick);
+  }, []);
+
   return (
-    <div className="fixed inset-0 pt-16 pb-[env(safe-area-inset-bottom)]">
-      {/* Map container */}
+    <>
+      <Dialog open={!!fullscreenImage} onOpenChange={(open) => !open && setFullscreenImage(null)}>
+        <DialogContent className="max-w-none w-full h-full p-0 bg-black/90">
+          <div className="flex items-center justify-center w-screen h-screen">
+            {fullscreenImage && (
+              <img 
+                src={fullscreenImage} 
+                alt="Fullscreen" 
+                className="max-w-[90vw] max-h-[90vh] object-contain"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <div className="fixed inset-0 pt-16 pb-[env(safe-area-inset-bottom)]">
       <div ref={mapRef} className="h-full w-full" style={{ zIndex: 10 }}></div>
 
-      {/* Control panel */}
       <div className="absolute bottom-6 right-6 z-20 flex flex-col space-y-2">
         <Card className="w-full sm:w-auto shadow-lg">
           <CardContent className="p-4">
@@ -257,6 +301,7 @@ const MapView = () => {
         </Card>
       </div>
     </div>
+    </>
   );
 };
 

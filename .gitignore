@@ -7,18 +7,174 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Runtime data
+*.pid
+*.seed
+*.pid.lock
+
+# Dependency directories
+node_modules/
+bower_components/
+.pnp/
+.pnp.js
+
+# Build directories
+dist/
+dist-ssr/
+build/
+out/
+.next/
+.nuxt/
+
+# Cache directories
+.cache/
+.temp/
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env*.local
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+*.code-workspace
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.venv/
+venv/
+ENV/
+env/
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+backend/instance/
+backend/esp32/static/
+
+# Testing
+coverage/
+.nyc_output/
+
+# Debug logs
+debug.log
+
+# Local development
+*.local
+
+# Bun
+.bun/
+
+# macOS
+.DS_Store
+
+# Vim
+*.swp
+*.swo
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Misc
+.sass-cache/
+*.css.map
+*.js.map
+*.min.js
+*.min.css
+.terraform/
+.terraform.lock.hcl
+.terraform.tfstate
+.terraform.tfstate.backup
+.terraform.tfvars
+.terraform.tfvars.json
+.terraform.auto.tfvars
+.terraform.auto.tfvars.json
+.terraform.override.tf
+.terraform.override.tf.json
+.terraform.plan
+.terraform.plan.json
+.terraform.plan.binary
+.terraform.plan.binary.json
+.terraform.plan.txt
+.terraform.plan.txt.json
+.terraform.plan.zip
+.terraform.plan.zip.json
+.terraform.plan.tar
+.terraform.plan.tar.json
+.terraform.plan.tar.gz
+.terraform.plan.tar.gz.json
+.terraform.plan.tar.bz2
+.terraform.plan.tar.bz2.json
+.terraform.plan.tar.xz
+.terraform.plan.tar.xz.json
+.terraform.plan.tar.Z
+.terraform.plan.tar.Z.json
+.terraform.plan.tar.lz
+.terraform.plan.tar.lz.json
+.terraform.plan.tar.lzma
+.terraform.plan.tar.lzma.json
+.terraform.plan.tar.lzo
+.terraform.plan.tar.lzo.json
+.terraform.plan.tar.lzop
+.terraform.plan.tar.lzop.json
+.terraform.plan.tar.snappy
+.terraform.plan.tar.snappy.json
+.terraform.plan.tar.zst
+.terraform.plan.tar.zst.json
+.terraform.plan.tar.zstd
+.terraform.plan.tar.zstd.json
+.terraform.plan.tar.lz4
+.terraform.plan.tar.lz4.json
+.terraform.plan.tar.lz
+.terraform.plan.tar.lz.json
+.terraform.plan.tar.lzma
+.terraform.plan.tar.lzma.json
+.terraform.plan.tar.lzo
+.terraform.plan.tar.lzo.json
+.terraform.plan.tar.lzop
+.terraform.plan.tar.lzop.json
+.terraform.plan.tar.snappy
+.terraform.plan.tar.snappy.json
+.terraform.plan.tar.zst
+.terraform.plan.tar.zst.json
+.terraform.plan.tar.zstd
+.terraform.plan.tar.zstd.json
+.terraform.plan.tar.lz4
+.terraform.plan.tar.lz4.json

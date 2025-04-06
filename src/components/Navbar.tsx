@@ -1,18 +1,50 @@
-import React, { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
-import { MapPin, Smartphone, CheckSquare, Settings, Menu, X } from 'lucide-react';
+import React, { useState, MouseEventHandler } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement> & { size?: number | string }>;
+  onClick?: () => void;
+}
+import { MapPin, Smartphone, CheckSquare, Settings, Menu, X, LogIn, LogOut, UserPlus } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
 
-  const navigation = [
-    { name: 'Map', href: '/', icon: MapPin },
-    { name: 'My Devices', href: '/devices', icon: Smartphone },
-    { name: 'Validations', href: '/validations', icon: CheckSquare },
-    { name: 'Settings', href: '/settings', icon: Settings },
-  ];
+  const { isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
+  
+  const mainNavigation: NavItem[] = isAuthenticated
+    ? [
+        { name: 'Map', href: '/', icon: MapPin },
+        { name: 'My Devices', href: '/devices', icon: Smartphone },
+        { name: 'Validations', href: '/validations', icon: CheckSquare },
+        { name: 'Settings', href: '/settings', icon: Settings },
+      ]
+    : [
+        { name: 'Map', href: '/', icon: MapPin }
+      ];
+
+  const authNavigation: NavItem[] = isAuthenticated
+    ? [
+        { 
+          name: 'Logout', 
+          href: '#', 
+          icon: LogOut,
+          onClick: async () => {
+            await logout();
+            navigate('/login');
+          }
+        }
+      ]
+    : [
+        { name: 'Login', href: '/login', icon: LogIn },
+        { name: 'Register', href: '/register', icon: UserPlus }
+      ];
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);
@@ -28,7 +60,7 @@ const Navbar = () => {
 
         {/* Desktop navigation */}
         <div className="hidden md:flex items-center space-x-4">
-          {navigation.map((item) => {
+          {[...mainNavigation, ...authNavigation].map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.href;
             
@@ -41,6 +73,7 @@ const Navbar = () => {
                   isActive ? "bg-primary/10 text-primary" : "hover:bg-muted"
                 )}
                 end={item.href === '/'}
+                onClick={item.onClick}
               >
                 <Icon size={18} />
                 <span>{item.name}</span>
@@ -62,10 +95,10 @@ const Navbar = () => {
       {/* Mobile menu */}
       <div className={cn(
         "md:hidden bg-card border-b border-border transition-all duration-200 ease-in-out overflow-hidden",
-        isOpen ? "max-h-64" : "max-h-0 invisible opacity-0 border-b-0"
+        isOpen ? "max-h-128" : "max-h-0 invisible opacity-0 border-b-0"
       )}>
         <div className="px-4 py-2 space-y-1">
-          {navigation.map((item) => {
+          {[...mainNavigation, ...authNavigation].map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.href;
             
@@ -77,7 +110,13 @@ const Navbar = () => {
                   "flex items-center px-3 py-3 rounded-md text-base font-medium transition-colors",
                   isActive ? "bg-primary/10 text-primary" : "hover:bg-muted"
                 )}
-                onClick={toggleMenu}
+                onClick={(e) => {
+                  toggleMenu();
+                  if (item.onClick) {
+                    e.preventDefault();
+                    item.onClick();
+                  }
+                }}
                 end={item.href === '/'}
               >
                 <Icon className="mr-3 h-5 w-5" />

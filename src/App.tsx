@@ -11,7 +11,10 @@ import DevicesPage from "./pages/DevicesPage";
 import ValidationsPage from "./pages/ValidationsPage";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
+import { Login } from "./pages/auth/Login";
+import { Register } from "./pages/auth/Register";
 import { useState } from "react";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import "./components/map-styles.css";
 
 const App = () => {
@@ -29,9 +32,11 @@ const App = () => {
             <Navbar />
             <Routes>
               <Route path="/" element={<Index />} />
-              <Route path="/devices" element={<DevicesPage />} />
-              <Route path="/validations" element={<ValidationsPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/devices" element={<ProtectedRoute><DevicesPage /></ProtectedRoute>} />
+              <Route path="/validations" element={<ProtectedRoute><ValidationsPage /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
