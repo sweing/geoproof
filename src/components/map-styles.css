@@ -85,6 +85,19 @@
   to { opacity: 1; }
 }
 
+/* Dark mode for map controls */
+.dark .leaflet-layer,
+.dark .leaflet-control-zoom-in,
+.dark .leaflet-control-zoom-out,
+.dark .leaflet-control-attribution {
+    filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+
+/* Dark mode map background */
+.dark .leaflet-container {
+    background: #333333;
+}
+
 /* Mobile optimizations */
 @media (max-width: 640px) {
   .leaflet-control-container .leaflet-top {
