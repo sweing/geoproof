@@ -46,6 +46,29 @@ class User(db.Model):
         return check_password_hash(self.password_hash, password)
 
 # Device Model
+class Validation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.String(80), db.ForeignKey('device.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)
+    status = db.Column(db.String(20), nullable=False) # 'success' or 'failure'
+    device_latitude = db.Column(db.Float)
+    device_longitude = db.Column(db.Float)
+    error_message = db.Column(db.String(200))
+    ip_address = db.Column(db.String(45)) # IPv6 max length is 45 chars
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'device_id': self.device_id,
+            'user_id': self.user_id,
+            'timestamp': self.timestamp.isoformat(),
+            'status': self.status,
+            'location': [self.device_latitude, self.device_longitude] if self.device_latitude and self.device_longitude else None,
+            'error_message': self.error_message,
+            'ip_address': self.ip_address
+        }
+
 class Device(db.Model):
     id = db.Column(db.String(80), primary_key=True) # Using string ID like in frontend mock
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -256,28 +279,89 @@ def decrypt_totp(secret_key, cipher_text):
 def validate_totp(device_id, data_enc):
     device = Device.query.get(device_id)
     if not device:
+        validation = Validation(
+            device_id=device_id,
+            user_id=None,
+            timestamp=datetime.now(timezone.utc),
+            status='failure',
+            error_message='Device not found',
+            ip_address=request.remote_addr
+        )
+        db.session.add(validation)
+        db.session.commit()
         abort(404, description="Device not found")
+    
     if not device.secret:
+        validation = Validation(
+            device_id=device_id,
+            user_id=device.user_id,
+            timestamp=datetime.now(timezone.utc),
+            status='failure',
+            error_message='Device missing secret key',
+            ip_address=request.remote_addr
+        )
+        db.session.add(validation)
+        db.session.commit()
         abort(400, description="Device missing secret key")
 
     try:
         decrypted_data = decrypt_totp(device.secret, data_enc)
-    except:
+    except Exception as e:
+        validation = Validation(
+            device_id=device_id,
+            user_id=device.user_id,
+            timestamp=datetime.now(timezone.utc),
+            status='failure',
+            error_message=f'Decryption error: {str(e)}',
+            ip_address=request.remote_addr
+        )
+        db.session.add(validation)
+        db.session.commit()
         abort(400, description="Decryption error")
 
     try:
         totp_number, esp_lat, esp_lng = decrypted_data.split('|')
         esp_lat = float(esp_lat)
         esp_lng = float(esp_lng)
-    except (ValueError, IndexError):
+    except (ValueError, IndexError) as e:
+        validation = Validation(
+            device_id=device_id,
+            user_id=device.user_id,
+            timestamp=datetime.now(timezone.utc),
+            status='failure',
+            error_message=f'Invalid data format: {str(e)}',
+            ip_address=request.remote_addr
+        )
+        db.session.add(validation)
+        db.session.commit()
         abort(400, description="Invalid data format")
 
     # Verify TOTP using the raw secret key from the secret column
-    if not device.secret:
-        abort(400, description="Device missing secret key")
     totp = pyotp.TOTP(device.secret)
     if not totp.verify(totp_number):
+        validation = Validation(
+            device_id=device_id,
+            user_id=device.user_id,
+            timestamp=datetime.now(timezone.utc),
+            status='failure',
+            error_message='Invalid TOTP',
+            ip_address=request.remote_addr
+        )
+        db.session.add(validation)
+        db.session.commit()
         abort(400, description="Invalid TOTP")
+
+    # Create successful validation record
+    validation = Validation(
+        device_id=device_id,
+        user_id=device.user_id,
+        timestamp=datetime.now(timezone.utc),
+        status='success',
+        device_latitude=esp_lat,
+        device_longitude=esp_lng,
+        ip_address=request.remote_addr
+    )
+    db.session.add(validation)
 
     # Update device last validation time
     device.last_validation = datetime.now(timezone.utc)
@@ -286,8 +370,28 @@ def validate_totp(device_id, data_enc):
     return jsonify({
         'status': 'success',
         'device_id': device_id,
-        'location': [esp_lat, esp_lng]
+        'location': [esp_lat, esp_lng],
+        'validation_id': validation.id
     }), 200
+
+@app.route('/api/validations/<string:device_id>', methods=['GET'])
+def get_validations(device_id):
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        abort(401, description='Missing or invalid authorization token')
+    
+    token = auth_header.split(' ')[1]
+    user_id = verify_token(token)
+
+    device = Device.query.get(device_id)
+    if not device:
+        abort(404, description="Device not found")
+    
+    if device.user_id != user_id:
+        abort(403, description="Not authorized to view this device's validations")
+
+    validations = Validation.query.filter_by(device_id=device_id).order_by(Validation.timestamp.desc()).all()
+    return jsonify([v.to_dict() for v in validations]), 200
 
 @app.route('/api/devices/<string:device_id>', methods=['DELETE'])
 def delete_device(device_id):
