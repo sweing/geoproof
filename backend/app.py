@@ -1,8 +1,11 @@
-from flask import Flask, request, jsonify, abort
+import os
+from flask import Flask, request, jsonify, abort, send_from_directory
+from dotenv import load_dotenv
+load_dotenv()
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from flask_cors import CORS
 import jwt
 import pyotp
@@ -10,12 +13,22 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 import base64
 
-app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+app = Flask(__name__, static_folder='../dist', static_url_path='/')
+# Enable CORS for all origins in both development and production
+CORS(app, resources={
+    r"/api/*": {
+        # "origins": ["http://localhost:3000", "http://127.0.0.1:3000"]
+        "origins": ["http://localhost:8080", "http://127.0.0.1:8080", "http://192.168.99.167:8080"]
+    }
+})
 migrate = Migrate()
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///auth.db'
+# Load config from environment or config file
+app.config.from_pyfile('config.py', silent=True)
+app.config['SQLALCHEMY_DATABASE_URI'] = app.config.get(
+    'SQLALCHEMY_DATABASE_URI', 'sqlite:///auth.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = 'your-secret-key-here'  # In production, use a proper secret key
+app.config['SECRET_KEY'] = app.config.get(
+    'SECRET_KEY', 'your-secret-key-here')  # Will be overridden in production
 db = SQLAlchemy(app)
 migrate.init_app(app, db)
 
@@ -80,7 +93,7 @@ def register():
 def create_token(user_id):
     payload = {
         'user_id': user_id,
-        'exp': datetime.utcnow() + timedelta(hours=24)
+        'exp': datetime.now(timezone.utc) + timedelta(hours=24)
     }
     return jwt.encode(payload, app.config['SECRET_KEY'], algorithm='HS256')
 
@@ -267,7 +280,7 @@ def validate_totp(device_id, data_enc):
         abort(400, description="Invalid TOTP")
 
     # Update device last validation time
-    device.last_validation = datetime.utcnow()
+    device.last_validation = datetime.now(timezone.utc)
     db.session.commit()
 
     return jsonify({
@@ -297,10 +310,24 @@ def delete_device(device_id):
     return jsonify({'message': 'Device deleted successfully'}), 200
 
 
+@app.route('/')
+def serve_frontend():
+    return send_from_directory(app.static_folder, 'index.html')
+
+@app.errorhandler(404)
+def not_found(e):
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Not found'}), 404
+    return send_from_directory(app.static_folder, 'index.html')
+
 if __name__ == '__main__':
     with app.app_context():
-        # Drop all tables and recreate in debug mode
+        # Only drop tables in debug mode
         if app.debug:
             db.drop_all()
         db.create_all()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    
+    if os.environ.get('FLASK_ENV') == 'production':
+        app.run(host='0.0.0.0', port=5000)
+    else:
+        app.run(host='0.0.0.0', port=5000, debug=True)
