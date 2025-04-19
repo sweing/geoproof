@@ -8,7 +8,9 @@ import { MapPin, Navigation, Info, Star } from "lucide-react";
 import maplibregl, { Marker } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { toast } from "@/components/ui/use-toast";
-import { useTheme } from "@/hooks/use-theme"; // Import useTheme
+import { ToastAction } from "@/components/ui/toast";
+import { useTheme } from "@/hooks/use-theme";
+import { useAuth } from "@/contexts/AuthContext";
 
 const MapView = () => {
   const [fullscreenImage, setFullscreenImage] = useState(null);
@@ -69,7 +71,7 @@ const MapView = () => {
         return; // Skip this device
       }
       const [lat, lng] = device.location;
-      const rating = device.lastValidation ? 4.2 : 5;
+      const rating = device.averageRating || 5;
       
       const markerElement = createMarkerElement(device.status);
       
@@ -77,13 +79,32 @@ const MapView = () => {
         <div class="text-sm font-sans">
           <h3 class="font-bold text-base mb-1">${device.name}</h3>
           <div class="flex items-center mt-1">
-            <div class="flex items-center text-amber-500">
-              ${Array.from({ length: 5 }, (_, i) => `
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="${i < Math.floor(rating) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-                </svg>
-              `).join('')}
-              <span class="ml-1">${rating.toFixed(1)}</span>
+            <div class="flex items-center space-x-1">
+              ${[1,2,3,4,5].map(star => {
+                const isFilled = star <= Math.floor(rating);
+                const isPartial = !isFilled && star === Math.ceil(rating) && rating % 1 > 0;
+                const fillPercentage = isPartial ? Math.round((rating % 1) * 100) : 0;
+                
+                return `
+                <button onclick="window.dispatchEvent(new CustomEvent('submitRating', { detail: JSON.stringify({ deviceId: '${device.id.replace(/'/g, "\\'")}', rating: ${star} }) }))"
+                  class="text-amber-500 hover:text-amber-600 transition-colors relative">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" 
+                    fill="${isFilled ? 'currentColor' : (star <= (device.userRating || 0) ? 'currentColor' : 'none')}" 
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                  </svg>
+                  ${isPartial ? `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" 
+                      class="absolute top-0 left-0 text-amber-500" 
+                      style="clip-path: inset(0 ${100 - fillPercentage}% 0 0)">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" 
+                        fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  ` : ''}
+                </button>
+                `;
+              }).join('')}
+              <span class="ml-1 text-amber-500">${rating.toFixed(1)} (${device.ratingCount || 1})</span>
             </div>
             <span class="ml-2 px-2 py-0.5 rounded-full text-xs ${device.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'}">
               ${device.status}
@@ -151,7 +172,7 @@ const MapView = () => {
 
     setNearbyDevices(devices.filter((d: { status: string; }) => d.status === 'active').length);
     const avgRating = devices.length > 0 ? 
-      devices.reduce((acc, curr) => acc + (curr.lastValidation ? 4.2 : 5), 0) / devices.length : 5;
+      devices.reduce((acc, curr) => acc + (curr.averageRating || 5), 0) / devices.length : 5;
     setAverageRating(avgRating);
   };
 
@@ -309,13 +330,92 @@ const MapView = () => {
     );
   };
 
+  const { isAuthenticated, token } = useAuth();
+
+  const submitRating = async (deviceId: string, rating: number) => {
+    if (!isAuthenticated || !token) {
+      toast({
+        title: "Authentication Required",
+        description: "Please login to rate devices",
+        variant: "destructive",
+        action: (
+          <ToastAction altText="Login" onClick={() => window.location.href = '/login'}>
+            Login
+          </ToastAction>
+        )
+      });
+      return;
+    }
+
+    if (!token) {
+      console.error('No token found despite being authenticated');
+      toast({
+        title: "Authentication Error",
+        description: "Please login again",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/ratings/${deviceId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ rating })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit rating');
+      }
+
+      // Refresh devices to show updated ratings
+      const devicesData = await getDevices();
+      setCurrentDevices(devicesData);
+      if (mapInstanceRef.current) {
+        addMarkersToMap(devicesData, mapInstanceRef.current);
+      }
+
+      toast({
+        title: "Rating submitted",
+        description: "Your rating has been saved successfully",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Rating Error",
+        description: err.message,
+        variant: "destructive"
+      });
+    }
+  };
+
   useEffect(() => {
     const handleImageClick = (e) => {
       setFullscreenImage(e.detail);
     };
 
+    const handleRatingSubmit = (e) => {
+      try {
+        const detail = typeof e.detail === 'string' ? JSON.parse(e.detail) : e.detail;
+        submitRating(detail.deviceId, detail.rating);
+      } catch (err) {
+        console.error('Error handling rating submit:', err);
+        toast({
+          title: "Rating Error",
+          description: "Failed to process rating",
+          variant: "destructive"
+        });
+      }
+    };
+
     window.addEventListener('imageClick', handleImageClick);
-    return () => window.removeEventListener('imageClick', handleImageClick);
+    window.addEventListener('submitRating', handleRatingSubmit);
+    return () => {
+      window.removeEventListener('imageClick', handleImageClick);
+      window.removeEventListener('submitRating', handleRatingSubmit);
+    };
   }, []);
 
   return (

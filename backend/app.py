@@ -69,6 +69,26 @@ class Validation(db.Model):
             'ip_address': self.ip_address
         }
 
+class Rating(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.String(80), db.ForeignKey('device.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    rating = db.Column(db.Integer, nullable=False) # 1-5 stars
+    timestamp = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint('device_id', 'user_id', name='unique_user_device_rating'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'device_id': self.device_id,
+            'user_id': self.user_id,
+            'rating': self.rating,
+            'timestamp': self.timestamp.isoformat()
+        }
+
 class Device(db.Model):
     id = db.Column(db.String(80), primary_key=True) # Using string ID like in frontend mock
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -167,10 +187,18 @@ def get_devices():
         # Extract timestamps as ISO strings
         recent_validation_timestamps = [v.timestamp.isoformat() for v in recent_validations]
 
+        # Calculate average rating
+        ratings = Rating.query.filter_by(device_id=device.id).all()
+        avg_rating = None
+        if ratings:
+            avg_rating = sum(r.rating for r in ratings) / len(ratings)
+
         devices_data.append({
             **device.to_dict(),
             'owner': device.owner.username,
-            'recentValidations': recent_validation_timestamps # Add the new field
+            'recentValidations': recent_validation_timestamps,
+            'averageRating': avg_rating,
+            'ratingCount': len(ratings)
         })
 
     return jsonify(devices_data), 200
@@ -238,6 +266,15 @@ def add_device():
         # last_validation is initially null
     )
     db.session.add(new_device)
+    
+    # Create initial 5-star rating from owner
+    initial_rating = Rating(
+        device_id=new_device.id,
+        user_id=user_id,
+        rating=5
+    )
+    db.session.add(initial_rating)
+    
     db.session.commit()
     return jsonify(new_device.to_dict()), 201
 
@@ -479,6 +516,77 @@ def get_my_validations():
     ).order_by(Validation.timestamp.desc()).all()
     
     return jsonify([v.to_dict() for v in validations]), 200
+
+@app.route('/api/ratings/<string:device_id>', methods=['POST'])
+def submit_rating(device_id):
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        abort(401, description='Missing or invalid authorization token')
+    
+    token = auth_header.split(' ')[1]
+    user_id = verify_token(token)
+
+    data = request.get_json()
+    if not data or 'rating' not in data:
+        abort(400, description="Missing rating value")
+
+    rating_value = data['rating']
+    if not isinstance(rating_value, int) or rating_value < 1 or rating_value > 5:
+        abort(400, description="Rating must be an integer between 1 and 5")
+
+    device = Device.query.get(device_id)
+    if not device:
+        abort(404, description="Device not found")
+
+    # Check if user already rated this device
+    existing_rating = Rating.query.filter_by(
+        device_id=device_id,
+        user_id=user_id
+    ).first()
+
+    if existing_rating:
+        # Update existing rating
+        existing_rating.rating = rating_value
+        existing_rating.timestamp = datetime.now(timezone.utc)
+    else:
+        # Create new rating
+        new_rating = Rating(
+            device_id=device_id,
+            user_id=user_id,
+            rating=rating_value
+        )
+        db.session.add(new_rating)
+    
+    db.session.commit()
+    return jsonify({'message': 'Rating submitted successfully'}), 200
+
+@app.route('/api/ratings/<string:device_id>', methods=['GET'])
+def get_device_ratings(device_id):
+    device = Device.query.get(device_id)
+    if not device:
+        abort(404, description="Device not found")
+
+    ratings = Rating.query.filter_by(device_id=device_id).all()
+    return jsonify([r.to_dict() for r in ratings]), 200
+
+@app.route('/api/my-rating/<string:device_id>', methods=['GET'])
+def get_my_rating(device_id):
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        abort(401, description='Missing or invalid authorization token')
+    
+    token = auth_header.split(' ')[1]
+    user_id = verify_token(token)
+
+    rating = Rating.query.filter_by(
+        device_id=device_id,
+        user_id=user_id
+    ).first()
+
+    if not rating:
+        return jsonify({'rating': None}), 200
+
+    return jsonify(rating.to_dict()), 200
 
 @app.route('/api/devices/<string:device_id>', methods=['DELETE'])
 def delete_device(device_id):
