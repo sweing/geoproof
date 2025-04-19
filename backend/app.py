@@ -154,10 +154,26 @@ def logout():
 @app.route('/api/devices', methods=['GET'])
 def get_devices():
     devices = Device.query.join(User).all()
-    return jsonify([{
-        **device.to_dict(),
-        'owner': device.owner.username
-    } for device in devices]), 200
+    devices_data = []
+    for device in devices:
+        # Query for the last 3 successful validations for this device
+        recent_validations = Validation.query.filter_by(
+            device_id=device.id,
+            status='success' # Only successful ones
+        ).order_by(
+            Validation.timestamp.desc() # Most recent first
+        ).limit(3).all()
+
+        # Extract timestamps as ISO strings
+        recent_validation_timestamps = [v.timestamp.isoformat() for v in recent_validations]
+
+        devices_data.append({
+            **device.to_dict(),
+            'owner': device.owner.username,
+            'recentValidations': recent_validation_timestamps # Add the new field
+        })
+
+    return jsonify(devices_data), 200
 
 @app.route('/api/my-devices', methods=['GET'])
 def get_my_devices():
@@ -275,86 +291,136 @@ def decrypt_totp(secret_key, cipher_text):
     plain_text = unpad(cipher.decrypt(ciphertext), AES.block_size)
     return plain_text.decode('utf-8')
 
-@app.route('/api/validate/<string:device_id>/<string:data_enc>', methods=['GET'])
-def validate_totp(device_id, data_enc):
+@app.route('/api/validate/<path:code>', methods=['GET'])
+def validate_totp(code):
+    # Split code into device_id and data_enc parts
+    parts = code.split('/')
+    if len(parts) != 2:
+        abort(400, description="Invalid validation code format")
+    device_id, data_enc = parts
+    print(f"Validation attempt for device {device_id}")  # Debug logging
+    
+    # Require authentication
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        abort(401, description='Authentication required')
+    
+    token = auth_header.split(' ')[1]
+    user_id = verify_token(token)
+    
     device = Device.query.get(device_id)
     if not device:
+        print("Device not found")  # Debug logging
         validation = Validation(
             device_id=device_id,
-            user_id=None,
+            user_id=user_id,
             timestamp=datetime.now(timezone.utc),
             status='failure',
             error_message='Device not found',
             ip_address=request.remote_addr
         )
         db.session.add(validation)
-        db.session.commit()
+        try:
+            db.session.commit()
+            print("Saved validation record for missing device")  # Debug logging
+        except Exception as e:
+            print(f"Failed to save validation record: {str(e)}")  # Debug logging
+            db.session.rollback()
         abort(404, description="Device not found")
     
     if not device.secret:
+        print("Device missing secret key")  # Debug logging
         validation = Validation(
             device_id=device_id,
-            user_id=device.user_id,
+            user_id=user_id,
             timestamp=datetime.now(timezone.utc),
             status='failure',
             error_message='Device missing secret key',
             ip_address=request.remote_addr
         )
         db.session.add(validation)
-        db.session.commit()
+        try:
+            db.session.commit()
+            print("Saved validation record for missing secret")  # Debug logging
+        except Exception as e:
+            print(f"Failed to save validation record: {str(e)}")  # Debug logging
+            db.session.rollback()
         abort(400, description="Device missing secret key")
 
     try:
+        print(f"Attempting decryption with secret: {device.secret}")  # Debug logging
         decrypted_data = decrypt_totp(device.secret, data_enc)
+        print(f"Decrypted data: {decrypted_data}")  # Debug logging
     except Exception as e:
+        print(f"Decryption failed: {str(e)}")  # Debug logging
         validation = Validation(
             device_id=device_id,
-            user_id=device.user_id,
+            user_id=user_id,
             timestamp=datetime.now(timezone.utc),
             status='failure',
             error_message=f'Decryption error: {str(e)}',
             ip_address=request.remote_addr
         )
         db.session.add(validation)
-        db.session.commit()
+        try:
+            db.session.commit()
+            print("Saved validation record for decryption error")  # Debug logging
+        except Exception as e:
+            print(f"Failed to save validation record: {str(e)}")  # Debug logging
+            db.session.rollback()
         abort(400, description="Decryption error")
 
     try:
+        print(f"Parsing decrypted data: {decrypted_data}")  # Debug logging
         totp_number, esp_lat, esp_lng = decrypted_data.split('|')
         esp_lat = float(esp_lat)
         esp_lng = float(esp_lng)
+        print(f"Parsed TOTP: {totp_number}, Lat: {esp_lat}, Lng: {esp_lng}")  # Debug logging
     except (ValueError, IndexError) as e:
+        print(f"Data parsing failed: {str(e)}")  # Debug logging
         validation = Validation(
             device_id=device_id,
-            user_id=device.user_id,
+            user_id=user_id,
             timestamp=datetime.now(timezone.utc),
             status='failure',
             error_message=f'Invalid data format: {str(e)}',
             ip_address=request.remote_addr
         )
         db.session.add(validation)
-        db.session.commit()
+        try:
+            db.session.commit()
+            print("Saved validation record for data format error")  # Debug logging
+        except Exception as e:
+            print(f"Failed to save validation record: {str(e)}")  # Debug logging
+            db.session.rollback()
         abort(400, description="Invalid data format")
 
     # Verify TOTP using the raw secret key from the secret column
     totp = pyotp.TOTP(device.secret)
     if not totp.verify(totp_number):
+        print("TOTP verification failed")  # Debug logging
         validation = Validation(
             device_id=device_id,
-            user_id=device.user_id,
+            user_id=user_id,
             timestamp=datetime.now(timezone.utc),
             status='failure',
             error_message='Invalid TOTP',
             ip_address=request.remote_addr
         )
         db.session.add(validation)
-        db.session.commit()
+        try:
+            db.session.commit()
+            print("Saved validation record for invalid TOTP")  # Debug logging
+        except Exception as e:
+            print(f"Failed to save validation record: {str(e)}")  # Debug logging
+            db.session.rollback()
         abort(400, description="Invalid TOTP")
 
     # Create successful validation record
+    print("Creating successful validation record")  # Debug logging
     validation = Validation(
         device_id=device_id,
-        user_id=device.user_id,
+        user_id=user_id,
         timestamp=datetime.now(timezone.utc),
         status='success',
         device_latitude=esp_lat,
@@ -365,7 +431,12 @@ def validate_totp(device_id, data_enc):
 
     # Update device last validation time
     device.last_validation = datetime.now(timezone.utc)
-    db.session.commit()
+    try:
+        db.session.commit()
+        print("Successfully saved validation and updated device")  # Debug logging
+    except Exception as e:
+        print(f"Failed to save validation: {str(e)}")  # Debug logging
+        db.session.rollback()
 
     return jsonify({
         'status': 'success',
@@ -391,6 +462,22 @@ def get_validations(device_id):
         abort(403, description="Not authorized to view this device's validations")
 
     validations = Validation.query.filter_by(device_id=device_id).order_by(Validation.timestamp.desc()).all()
+    return jsonify([v.to_dict() for v in validations]), 200
+
+@app.route('/api/my-validations', methods=['GET'])
+def get_my_validations():
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        abort(401, description='Missing or invalid authorization token')
+    
+    token = auth_header.split(' ')[1]
+    user_id = verify_token(token)
+
+    # Get all validations for this user
+    validations = Validation.query.filter_by(
+        user_id=user_id
+    ).order_by(Validation.timestamp.desc()).all()
+    
     return jsonify([v.to_dict() for v in validations]), 200
 
 @app.route('/api/devices/<string:device_id>', methods=['DELETE'])

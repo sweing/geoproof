@@ -40,3 +40,25 @@
 .read-the-docs {
   color: #888;
 }
+
+/* MapLibre Popup Theming */
+.map-popup-themed .maplibregl-popup-content {
+  background-color: white; /* Light mode background */
+  color: #1f2937; /* Light mode text (gray-800) */
+  border-radius: 8px; /* Match shadcn/ui card radius */
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); /* Match shadcn/ui shadow */
+  padding: 12px; /* Adjust padding */
+  font-family: sans-serif; /* Ensure consistent font */
+  max-width: 300px !important; /* Ensure max-width is applied */
+}
+
+.map-popup-themed .maplibregl-popup-tip {
+  border-top-color: white; /* Light mode tip */
+}
+
+
+/* Ensure popup content uses Tailwind classes correctly */
+.map-popup-themed .maplibregl-popup-content .text-muted-foreground {
+  color: #6b7280; /* gray-500 */
+}
+

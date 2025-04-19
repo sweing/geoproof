@@ -99,3 +99,17 @@
 .dark .bb-tooltip .bb-tooltip-name {
   color: #dddddd !important;
 }
+
+.dark .map-popup-themed .maplibregl-popup-content {
+  background-color: #1f2937; /* Dark mode background (gray-800) */
+  color: #f9fafb; /* Dark mode text (gray-50) */
+}
+
+.dark .map-popup-themed .maplibregl-popup-tip {
+  border-top-color: #1f2937; /* Dark mode tip */
+  border-bottom-color: #1f2937; /* Dark mode tip */
+}
+
+.dark .map-popup-themed .maplibregl-popup-content .text-muted-foreground {
+  color: #9ca3af; /* gray-400 */
+}

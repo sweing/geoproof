@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 interface AuthContextType {
   isAuthenticated: boolean;
   userId: string | null;
+  token: string | null;
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -29,6 +30,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const response = await apiLogin(username, password);
       localStorage.setItem('authToken', response.token);
+      localStorage.setItem('username', username);
       setUserId(response.user_id);
       setIsAuthenticated(true);
       toast.success('Login successful');
@@ -61,8 +63,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const token = localStorage.getItem('authToken');
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated, userId, login, register, logout }}>
+    <AuthContext.Provider value={{ 
+      isAuthenticated, 
+      userId, 
+      token,
+      login, 
+      register, 
+      logout 
+    }}>
       {children}
     </AuthContext.Provider>
   );

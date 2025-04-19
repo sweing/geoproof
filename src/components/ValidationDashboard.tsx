@@ -1,122 +1,211 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import bb, { bar, line } from 'billboard.js';
-import 'billboard.js/dist/theme/insight.css';
+import { useLocation } from 'react-router-dom';
+import { API_BASE_URL } from '@/lib/config';
+import { useAuth } from '@/contexts/AuthContext';
+import ReactECharts from 'echarts-for-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext } from '@/components/ui/pagination';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CheckSquare, Camera, BarChart3, AlertCircle, Check, X, Clock, MapPin, Smartphone } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import { useTheme } from '@/hooks/use-theme';
 
 interface ValidationRecord {
-  id: string;
+  id: number;
   timestamp: string;
-  deviceId: string;
-  deviceName: string;
-  location: {
-    latitude: number;
-    longitude: number;
-    address: string;
-  };
-  status: 'success' | 'failed';
-  reason?: string;
+  device_id: string;
+  deviceName?: string;
+  location: [number, number] | null;
+  status: 'success' | 'failure';
+  error_message?: string;
+  ip_address?: string;
 }
 
 const ValidationDashboard = () => {
+  const location = useLocation();
+  const [isFromValidation, setIsFromValidation] = useState(false);
   const [validations, setValidations] = useState<ValidationRecord[]>([]);
   const [showScanner, setShowScanner] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const chartRef = useRef<HTMLDivElement>(null);
-  const chartInstance = useRef<bb.Chart | null>(null);
+  const chartRef = useRef<ReactECharts>(null);
   const scannerIntervalRef = useRef<number | null>(null);
   
-  // Generate mock validation data
-  useEffect(() => {
-    const savedValidations = localStorage.getItem('geoProofValidations');
-    if (savedValidations) {
-      setValidations(JSON.parse(savedValidations));
-    } else {
-      const mockData = generateMockValidations(20);
-      setValidations(mockData);
-      localStorage.setItem('geoProofValidations', JSON.stringify(mockData));
-    }
-  }, []);
-  
-  // Initialize and update chart when validations change
-  useEffect(() => {
-    if (!chartRef.current) return;
+  const { token } = useAuth();
 
-    const dailyData = getDailyValidationData();
-    
-    if (!chartInstance.current) {
-      chartInstance.current = bb.generate({
-        bindto: chartRef.current,
-        data: {
-          columns: [
-            ['success', ...dailyData.map(d => d.success)],
-            ['failed', ...dailyData.map(d => d.failed)]
-          ],
-          type: bar(),
-          groups: [['success', 'failed']],
-          colors: {
-            success: '#2A9D8F',
-            failed: '#E76F51'
-          }
-        },
-        bar: {
-          width: {
-            ratio: 0.6
-          }
-        },
-        axis: {
-          x: {
-            type: 'category',
-            categories: dailyData.map(d => 
-              d.date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' }))
-          },
-          y: {
-            tick: {
-              count: 10
-            }
-          }
-        },
-        grid: {
-          y: {
-            show: true
-          }
-        },
-        legend: {
-          position: 'inset',
-          inset: {
-            anchor: 'top-right',
-            x: 20,
-            y: 10
-          }
-        },
-        tooltip: {
-          grouped: true
+  // Fetch real validation data from API
+  useEffect(() => {
+    // Check if we're coming from a validation link
+    if (location.search.includes('from_validation=true')) {
+      setIsFromValidation(true);
+      const timer = setTimeout(() => setIsFromValidation(false), 2000);
+      
+      // Scroll to validation history if hash is present
+      if (location.hash === '#validation-history') {
+        const element = document.getElementById('validation-history');
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: "start" });
         }
-      });
-    } else {
-      chartInstance.current.load({
-        columns: [
-          ['success', ...dailyData.map(d => d.success)],
-          ['failed', ...dailyData.map(d => d.failed)]
-        ],
-        categories: dailyData.map(d => 
-          d.date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' }))
-      });
+      }
+      
+      return () => clearTimeout(timer);
     }
+  }, [location]);
 
-    return () => {
-      if (chartInstance.current) {
-        chartInstance.current.destroy();
-        chartInstance.current = null;
+  useEffect(() => {
+    if (!token) return;
+
+    const fetchValidations = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/my-validations`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch validations');
+        }
+
+        const data = await response.json();
+        setValidations(data);
+      } catch (error) {
+        console.error('Error fetching validations:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load validation data",
+          variant: "destructive"
+        });
       }
     };
-  }, [validations]);
+
+    fetchValidations();
+  }, [token]);
+  
+  // Get all validations for 2025
+  const getYearlyValidationData = () => {
+    const yearStart = new Date('2025-01-01');
+    const yearEnd = new Date('2025-12-31');
+    
+    const dailyData: {date: Date, count: number}[] = [];
+    
+    // Initialize all days in 2025 with count 0
+    for (let d = new Date(yearStart); d <= yearEnd; d.setDate(d.getDate() + 1)) {
+      dailyData.push({
+        date: new Date(d),
+        count: 0
+      });
+    }
+    
+    // Count validations for each day
+    validations.forEach(v => {
+      const vDate = new Date(v.timestamp);
+      if (vDate >= yearStart && vDate <= yearEnd) {
+        const dayStr = vDate.toISOString().split('T')[0];
+        const dayData = dailyData.find(d => d.date.toISOString().split('T')[0] === dayStr);
+        if (dayData) {
+          dayData.count++;
+        }
+      }
+    });
+    
+    return dailyData;
+  };
+
+  // Generate ECharts calendar heatmap options
+  const { theme } = useTheme();
+
+  const getHeatmapOptions = () => {
+    const yearlyData = getYearlyValidationData();
+    const colors = theme === 'dark' 
+      ? ['#2d3748', '#4a5568', '#718096', '#90cdf4', '#63b3ed'] // Dark mode colors
+      : ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39']; // Light mode colors
+    
+    return {
+      tooltip: {
+        position: 'top',
+        backgroundColor: theme === 'dark' ? '#2d3748' : '#ffffff',
+        borderColor: theme === 'dark' ? '#4a5568' : '#e2e8f0',
+        textStyle: {
+          color: theme === 'dark' ? '#e2e8f0' : '#1a202c'
+        },
+        formatter: function (params: any) {
+          const date = new Date(params.data[0]);
+          return `${date.toLocaleDateString()}: ${params.data[1]} validations`;
+        }
+      },
+      visualMap: {
+        min: 0,
+        max: Math.max(...yearlyData.map(d => d.count)), 
+        calculable: true,
+        orient: 'horizontal',
+        left: 'center',
+        bottom: 0,
+        textStyle: {
+          color: theme === 'dark' ? '#e2e8f0' : '#1a202c'
+        },
+        inRange: {
+          color: colors
+        }
+      },
+        calendar: {
+        top: 50,
+        left: 30,
+        right: 30,
+        cellSize: ['auto', 13],
+        range: '2025',
+        borderColor: theme === 'dark' ? '#718096' : '#e2e8f0',
+        itemStyle: {
+          borderWidth: 0.5,
+          borderColor: theme === 'dark' ? '#718096' : '#e2e8f0'
+        },
+        splitLine: {
+          lineStyle: {
+            color: theme === 'dark' ? '#a0aec0' : '#1a202c'
+          }
+        },
+        yearLabel: { 
+          show: true,
+          color: theme === 'dark' ? '#e2e8f0' : '#1a202c',
+          fontSize: 14,
+          position: 'top'
+        },
+        monthLabel: {
+          color: theme === 'dark' ? '#e2e8f0' : '#1a202c',
+          fontSize: 12
+        },
+        dayLabel: {
+          color: theme === 'dark' ? '#e2e8f0' : '#1a202c',
+          fontSize: 12
+        }
+      },
+      grid: {
+        left: '0',
+        right: '0',
+        top: '70',
+        bottom: '40',
+        containLabel: true
+      },
+      series: {
+        type: 'heatmap',
+        coordinateSystem: 'calendar',
+        data: yearlyData.map(d => [
+          d.date.toISOString(),
+          d.count
+        ]),
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 10,
+            shadowColor: 'rgba(0, 0, 0, 0.5)'
+          }
+        }
+      }
+    };
+  };
 
   const getDailyValidationData = () => {
     const last7Days = Array.from({length: 7}, (_, i) => {
@@ -136,7 +225,7 @@ const ValidationDashboard = () => {
       });
       
       const successCount = dayValidations.filter(v => v.status === 'success').length;
-      const failCount = dayValidations.filter(v => v.status === 'failed').length;
+      const failCount = dayValidations.filter(v => v.status === 'failure').length;
       
       return {
         date: day,
@@ -160,58 +249,6 @@ const ValidationDashboard = () => {
     };
   }, [showScanner]);
   
-  const generateMockValidations = (count: number): ValidationRecord[] => {
-    const mockDevices = [
-      { id: 'dev1', name: 'ESP32 Office' },
-      { id: 'dev2', name: 'ESP32 Cafe' },
-      { id: 'dev3', name: 'ESP32 Park' }
-    ];
-    
-    const locations = [
-      { lat: 48.1907, lng: 16.3747, address: 'Stephansplatz 1, 1010 Wien' },
-      { lat: 48.1957, lng: 16.3687, address: 'Universitätsring, 1010 Wien' },
-      { lat: 48.1857, lng: 16.3797, address: 'Stadtpark, 1030 Wien' }
-    ];
-    
-    const failReasons = [
-      'QR code expired',
-      'Location mismatch',
-      'Invalid signature',
-      'Device not found'
-    ];
-    
-    const now = new Date();
-    const results: ValidationRecord[] = [];
-    
-    for (let i = 0; i < count; i++) {
-      const deviceIndex = Math.floor(Math.random() * mockDevices.length);
-      const device = mockDevices[deviceIndex];
-      const location = locations[deviceIndex];
-      
-      const status = Math.random() > 0.3 ? 'success' : 'failed';
-      const timestamp = new Date(now.getTime() - i * Math.floor(Math.random() * 24 * 60 * 60 * 1000));
-      
-      results.push({
-        id: `val-${i + 1}`,
-        timestamp: timestamp.toISOString(),
-        deviceId: device.id,
-        deviceName: device.name,
-        location: {
-          latitude: location.lat,
-          longitude: location.lng,
-          address: location.address
-        },
-        status,
-        ...(status === 'failed' && {
-          reason: failReasons[Math.floor(Math.random() * failReasons.length)]
-        })
-      });
-    }
-    
-    return results.sort((a, b) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-  };
   
   
   const startCamera = async () => {
@@ -289,60 +326,43 @@ const ValidationDashboard = () => {
     }
   };
   
-  const processQRCode = (qrData: string) => {
+  const processQRCode = async (qrData: string) => {
     // Stop scanning
     stopCamera();
     setShowScanner(false);
     
-    // In a real app, we would decode and validate the QR data
-    // For this demo, we'll parse the device ID from the URL and create a mock validation
-    try {
-      // Extract device ID from URL pattern: https://domain.com/device_id/encoded_data
-      const urlParts = qrData.split('/');
-      const deviceId = urlParts[urlParts.length - 2];
-      
-      // Get device info from stored devices
-      const devices = JSON.parse(localStorage.getItem('geoProofDevices') || '[]');
-      const device = devices.find((d: any) => d.id === deviceId) || {
-        name: `Unknown Device (${deviceId})`,
-        location: {
-          latitude: 48.1887,
-          longitude: 16.3767
-        },
-        address: 'Unknown Location'
-      };
-      
-      // Create a new validation record
-      const newValidation: ValidationRecord = {
-        id: `val-${new Date().getTime()}`,
-        timestamp: new Date().toISOString(),
-        deviceId: deviceId,
-        deviceName: device.name,
-        location: {
-          latitude: device.location?.[0] || 48.1887,
-          longitude: device.location?.[1] || 16.3767,
-          address: device.address || 'Unknown Location'
-        },
-        status: Math.random() > 0.2 ? 'success' : 'failed'
-      };
-      
-      if (newValidation.status === 'failed') {
-        newValidation.reason = 'QR code validation failed';
-      }
-      
-      // Add to validations list
-      const updatedValidations = [newValidation, ...validations];
-      setValidations(updatedValidations);
-      localStorage.setItem('geoProofValidations', JSON.stringify(updatedValidations));
-      
-      // Show success toast
-      toast({
-        title: newValidation.status === 'success' ? "Validation Successful" : "Validation Failed",
-        description: newValidation.status === 'success' 
-          ? `Successfully validated location for ${newValidation.deviceName}`
-          : newValidation.reason,
-        variant: newValidation.status === 'success' ? "default" : "destructive"
-      });
+      try {
+        // Call the validation API endpoint
+        const response = await fetch(`${API_BASE_URL}/validate/${qrData}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Validation failed');
+        }
+
+        // Refresh validations after successful validation
+        const validationsResponse = await fetch(`${API_BASE_URL}/my-validations`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!validationsResponse.ok) {
+          throw new Error('Failed to fetch updated validations');
+        }
+
+        const updatedValidations = await validationsResponse.json();
+        setValidations(updatedValidations);
+
+        toast({
+          title: "Validation Successful",
+          description: "Location validation completed successfully",
+          variant: "default"
+        });
     } catch (error) {
       console.error('Error processing QR code:', error);
       toast({
@@ -356,7 +376,7 @@ const ValidationDashboard = () => {
   const getValidationStats = () => {
     const total = validations.length;
     const successful = validations.filter(v => v.status === 'success').length;
-    const failed = total - successful;
+    const failed = validations.filter(v => v.status === 'failure').length;
     const successRate = total > 0 ? (successful / total * 100).toFixed(1) : '0';
     
     return { total, successful, failed, successRate };
@@ -415,13 +435,19 @@ const ValidationDashboard = () => {
           <CardHeader>
             <CardTitle className="flex items-center">
               <BarChart3 className="mr-2" />
-              Validation History
+              {getYearlyValidationData().reduce((sum, day) => sum + day.count, 0)} validation attempts in 2025
             </CardTitle>
-            <CardDescription>7-day validation statistics</CardDescription>
+            <CardDescription>1-year validation statistics</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="w-full h-64">
-              <div ref={chartRef} className="w-full h-full" />
+            <div className="w-full h-64 overflow-x-auto">
+              <div className="min-w-[800px] h-full">
+                <ReactECharts
+                  ref={chartRef}
+                  option={getHeatmapOptions()}
+                  style={{ height: '100%', width: '100%' }}
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -455,11 +481,11 @@ const ValidationDashboard = () => {
         </Card>
       </div>
       
-      <Card className="mt-4">
+      <Card className="mt-4" id="validation-history">
         <CardHeader>
           <CardTitle>Validation History</CardTitle>
           <CardDescription>
-            Recent location validations and their status
+            Recent validations and their status
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -474,8 +500,11 @@ const ValidationDashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {validations.slice(0, 10).map(validation => (
-                  <tr key={validation.id} className="border-b">
+                {validations.slice((currentPage-1)*10, currentPage*10).map((validation, index) => (
+                  <tr 
+                    key={validation.id} 
+                    className={`border-b ${isFromValidation && index === 0 ? 'animate-pulse bg-red-100/50' : ''}`}
+                  >
                     <td className="p-2 flex items-start">
                       <Clock size={14} className="mr-1 mt-0.5 text-muted-foreground flex-shrink-0" />
                       <div>
@@ -489,8 +518,8 @@ const ValidationDashboard = () => {
                       <div className="flex items-start">
                         <Smartphone size={14} className="mr-1 mt-0.5 text-muted-foreground flex-shrink-0" />
                         <div>
-                          <div>{validation.deviceName}</div>
-                          <div className="text-xs text-muted-foreground">ID: {validation.deviceId}</div>
+                      <div>{validation.deviceName || `Device ${validation.device_id}`}</div>
+                      <div className="text-xs text-muted-foreground">ID: {validation.device_id}</div>
                         </div>
                       </div>
                     </td>
@@ -498,10 +527,13 @@ const ValidationDashboard = () => {
                       <div className="flex items-start">
                         <MapPin size={14} className="mr-1 mt-0.5 text-muted-foreground flex-shrink-0" />
                         <div>
-                          <div className="text-sm truncate max-w-xs">{validation.location.address}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {validation.location.latitude.toFixed(5)}, {validation.location.longitude.toFixed(5)}
-                          </div>
+                          {validation.location ? (
+                            <div className="text-xs text-muted-foreground">
+                              {validation.location[0].toFixed(5)}, {validation.location[1].toFixed(5)}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-muted-foreground">No location data</div>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -515,9 +547,9 @@ const ValidationDashboard = () => {
                         <div className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
                           <X size={12} className="mr-1" />
                           Failed
-                          {validation.reason && (
+                          {validation.error_message && (
                             <span className="ml-1 text-xs">
-                              ({validation.reason})
+                              ({validation.error_message})
                             </span>
                           )}
                         </div>
@@ -537,13 +569,29 @@ const ValidationDashboard = () => {
             </table>
           </div>
         </CardContent>
-        {validations.length > 10 && (
-          <CardFooter>
-            <Button variant="outline" className="w-full">
-              View All
-            </Button>
-          </CardFooter>
-        )}
+        <CardFooter className="flex justify-center">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev-1))}
+                  className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+              <PaginationItem>
+                <span className="px-2 py-2 text-sm">
+                  Page {currentPage} of {Math.ceil(validations.length / 10)}
+                </span>
+              </PaginationItem>
+              <PaginationItem>
+                <PaginationNext 
+                  onClick={() => setCurrentPage(prev => Math.min(Math.ceil(validations.length / 10), prev+1))}
+                  className={currentPage === Math.ceil(validations.length / 10) ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </CardFooter>
       </Card>
       
       {/* QR Scanner Dialog */}

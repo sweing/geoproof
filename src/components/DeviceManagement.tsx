@@ -13,12 +13,9 @@ import { toast } from '@/components/ui/use-toast';
 import { type Device } from '@/types/device'; // Import Device type
 import { getDevices, getMyDevices, addDevice, updateDevice, deleteDevice } from '@/lib/services/device'; // Import API service functions
 
-// Declare Leaflet types again
-declare global {
-  interface Window {
-    L: any;
-  }
-}
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import { useTheme } from "@/hooks/use-theme";
 
 const DeviceManagement = () => {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -36,8 +33,9 @@ const DeviceManagement = () => {
 
   const editSectionRef = useRef<HTMLDivElement>(null);
   const locationMapRef = useRef<HTMLDivElement>(null);
-  const leafletMap = useRef<any>(null);
-  const locationMarker = useRef<any>(null);
+  const mapInstanceRef = useRef<maplibregl.Map | null>(null);
+  const locationMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const { theme } = useTheme();
 
   // Default location (Vienna)
   const defaultLocation: [number, number] = [48.1887, 16.3767];
@@ -89,99 +87,96 @@ const DeviceManagement = () => {
     }
   };
 
+  // Define map styles
+  const mapStyles = {
+    light: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+    dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+  };
+
   // Initialize map when showing add/edit device form
   useEffect(() => {
     if (showAddDevice && locationMapRef.current) {
-      initMap();
+      const effectiveTheme = theme === 'system' 
+        ? window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        : theme;
+      
+      const initialStyle = mapStyles[effectiveTheme];
+      const initialLocation = editingDevice?.location && editingDevice.location.length === 2
+        ? editingDevice.location
+        : formData.location;
+
+      // Cleanup existing map if any
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+        locationMarkerRef.current = null;
+      }
+
+      // Create new map
+      const map = new maplibregl.Map({
+        container: locationMapRef.current,
+        style: initialStyle,
+        center: [initialLocation[1], initialLocation[0]], // [lng, lat]
+        zoom: 13,
+        attributionControl: false
+      });
+
+      mapInstanceRef.current = map;
+
+      // Add navigation controls
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+
+      // Create marker element
+      const el = document.createElement('div');
+      el.className = 'device-location-marker';
+      el.style.width = '24px';
+      el.style.height = '24px';
+      el.style.backgroundColor = '#3B82F6';
+      el.style.borderRadius = '50%';
+      el.style.border = '2px solid white';
+      el.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.5)';
+
+      // Add marker
+      const marker = new maplibregl.Marker({ 
+        element: el,
+        draggable: true
+      })
+        .setLngLat([initialLocation[1], initialLocation[0]])
+        .addTo(map);
+
+      locationMarkerRef.current = marker;
+
+      // Handle marker drag
+      marker.on('dragend', async () => {
+        const position = marker.getLngLat();
+        const newLocation: [number, number] = [position.lat, position.lng];
+        
+        setFormData(prev => ({ ...prev, location: newLocation, address: 'Fetching address...' }));
+
+        try {
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${newLocation[0]}&lon=${newLocation[1]}&zoom=18&addressdetails=1`);
+          const data = await response.json();
+          const address = data?.display_name || `Lat: ${newLocation[0].toFixed(4)}, Lng: ${newLocation[1].toFixed(4)}`;
+          setFormData(prev => ({ ...prev, address }));
+        } catch (error) {
+          console.error('Error fetching address:', error);
+          setFormData(prev => ({
+            ...prev,
+            address: `Lat: ${newLocation[0].toFixed(4)}, Lng: ${newLocation[1].toFixed(4)}`
+          }));
+        }
+      });
     }
 
     // Cleanup map instance on unmount or when form is hidden
     return () => {
-      if (leafletMap.current) {
-        leafletMap.current.remove();
-        leafletMap.current = null;
-        locationMarker.current = null;
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+        locationMarkerRef.current = null;
       }
     };
-  }, [showAddDevice, editingDevice]); // Re-init map if editingDevice changes while form is open
-
-  const initMap = () => {
-    const loadLeafletAndCreateMap = () => {
-        if (!window.L) {
-            const leafletCss = document.createElement('link');
-            leafletCss.rel = 'stylesheet';
-            leafletCss.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-            document.head.appendChild(leafletCss);
-
-            const leafletScript = document.createElement('script');
-            leafletScript.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-            leafletScript.async = true;
-            leafletScript.onload = () => {
-                if (locationMapRef.current && showAddDevice) { // Check if still relevant
-                    createMap();
-                }
-            };
-            document.body.appendChild(leafletScript);
-        } else {
-             if (locationMapRef.current && showAddDevice) { // Check if still relevant
-                 createMap();
-             }
-        }
-    }
-
-    // Delay slightly to ensure DOM is ready
-    setTimeout(loadLeafletAndCreateMap, 100);
-  };
-
-  const createMap = () => {
-    if (!window.L || !locationMapRef.current || !showAddDevice) return; // Ensure form is still shown
-
-    const initialLocation = editingDevice?.location && editingDevice.location.length === 2
-      ? editingDevice.location
-      : formData.location;
-
-    // Ensure map isn't initialized twice if initMap is called rapidly
-    if (leafletMap.current) {
-      leafletMap.current.remove();
-    }
-
-    leafletMap.current = window.L.map(locationMapRef.current).setView(initialLocation, 13);
-
-    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(leafletMap.current);
-
-    locationMarker.current = window.L.marker(initialLocation, {
-      draggable: true
-    }).addTo(leafletMap.current);
-
-    locationMarker.current.on('dragend', async (e: any) => {
-      const marker = e.target;
-      const position = marker.getLatLng();
-      const newLocation: [number, number] = [position.lat, position.lng];
-
-      setFormData(prev => ({ ...prev, location: newLocation, address: 'Fetching address...' }));
-
-      try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${newLocation[0]}&lon=${newLocation[1]}&zoom=18&addressdetails=1`);
-        const data = await response.json();
-        const address = data?.display_name || `Lat: ${newLocation[0].toFixed(4)}, Lng: ${newLocation[1].toFixed(4)}`;
-        setFormData(prev => ({ ...prev, address: address }));
-      } catch (error) {
-        console.error('Error fetching address:', error);
-        setFormData(prev => ({
-          ...prev,
-          address: `Lat: ${newLocation[0].toFixed(4)}, Lng: ${newLocation[1].toFixed(4)}`
-        }));
-      }
-    });
-
-    // Ensure map view and marker position are correct if editing
-    if (editingDevice) {
-        leafletMap.current.setView(initialLocation, 13);
-        locationMarker.current.setLatLng(initialLocation);
-    }
-  };
+  }, [showAddDevice, editingDevice, theme]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -290,9 +285,12 @@ const DeviceManagement = () => {
     });
     setNewDeviceData(prev => ({ ...prev, key })); // Store plain key for display
      // Reset map view if map exists
-    if (leafletMap.current && locationMarker.current) {
-        leafletMap.current.setView(defaultLocation, 13);
-        locationMarker.current.setLatLng(defaultLocation);
+    if (mapInstanceRef.current && locationMarkerRef.current) {
+        mapInstanceRef.current.flyTo({
+          center: [defaultLocation[1], defaultLocation[0]], // [lng, lat]
+          zoom: 13
+        });
+        locationMarkerRef.current.setLngLat([defaultLocation[1], defaultLocation[0]]);
     }
   };
 

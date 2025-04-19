@@ -29,7 +29,10 @@ function Calendar({
         ),
         nav_button_previous: "absolute left-1",
         nav_button_next: "absolute right-1",
-        table: "w-full border-collapse space-y-1",
+        table: cn(
+          "w-full border-collapse space-y-1",
+          "dark:border-gray-700" // Darker gridlines for dark mode
+        ),
         head_row: "flex",
         head_cell:
           "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
@@ -57,8 +60,5 @@ function Calendar({
       }}
       {...props}
     />
-  );
-}
-Calendar.displayName = "Calendar";
 
 export { Calendar };

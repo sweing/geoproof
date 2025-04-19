@@ -14,6 +14,7 @@ import { useTheme } from '@/hooks/use-theme';
 const SettingsPage = () => {
   const { theme, setTheme } = useTheme();
   const [profile, setProfile] = useState({
+    username: localStorage.getItem('username') || 'username',
     email: 'user@example.com',
     currentPassword: '',
     newPassword: '',
@@ -162,6 +163,17 @@ const SettingsPage = () => {
             <CardContent>
               <form onSubmit={handleSaveProfile}>
                 <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="username">Username</Label>
+                    <Input 
+                      id="username"
+                      name="username"
+                      type="text"
+                      value={profile.username}
+                      disabled
+                    />
+                  </div>
+                  
                   <div className="space-y-2">
                     <Label htmlFor="email">Email Address</Label>
                     <Input 

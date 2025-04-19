@@ -101,6 +101,9 @@ debug.log
 # macOS
 .DS_Store
 
+# aider
+.aider*
+
 # Vim
 *.swp
 *.swo

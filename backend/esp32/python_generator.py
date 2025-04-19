@@ -7,10 +7,10 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 
 #base_url = "https://map.localproof.org"
-base_url = "http://localhost:8080/api/validate"
+base_url = "http://localhost:8080/validate?code="
 
-device_id = "dev1850"
-secret = "UIVVQJEFRZ25B6AE" # Comment line to query database 
+device_id = "dev2243"
+secret = "N6OYKIG65RETZ4NI" # Comment line to query database 
 device_lng = 48.188920
 device_lat = 16.376279
 
@@ -90,7 +90,7 @@ def generate_totp_qr(device_id: str, lat: float, lng: float, secret: str = None)
     encrypted_data = encrypt_totp(secret, current_totp, lat, lng)
 
     # Create a validation URL with encrypted data and device ID
-    validation_url = f"{base_url}/{device_id}/{encrypted_data}"
+    validation_url = f"{base_url}{device_id}/{encrypted_data}"
 
     # Print URL for testing
     print(f"Validation URL: {validation_url}")
