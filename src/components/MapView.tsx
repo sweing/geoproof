@@ -193,7 +193,7 @@ const MapView = () => {
       mapInstanceRef.current = map;
       currentStyleUrlRef.current = initialStyle; // Store initial style
 
-      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+      map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
       // map.addControl(new maplibregl.AttributionControl({
       //   customAttribution: '© <a href="https://carto.com/attributions">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
       // }), 'bottom-right');
@@ -208,6 +208,9 @@ const MapView = () => {
           // Add markers after map is loaded
           map.on('load', () => {
             addMarkersToMap(devicesData, map);
+            map.setProjection({
+              type: 'globe', // Set projection to globe
+            });
             // Add user marker if location is already known
             if (userLocation) {
               addUserMarkerToMap(userLocation, map);
