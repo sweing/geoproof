@@ -9,8 +9,10 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "live-sweing": "rsync -arv -e 'ssh -p 21022' dist/ sweing@sweing-nebula:/var/www/html/geoproof/live/",
-    "deploy-sweing": "npm run build && npm run live-sweing"
+    "live": "rsync -arv --exclude='.htaccess' dist/ --delete nebula@spica.uberspace.de:~/geoproof_backend/dist",
+    "live-sweing": "rsync -arv -e 'ssh -p 21022' dist/ uberspace:/var/www/virtual/nebula/geoproof.org/live/",
+    "deploy-sweing": "npm run build && npm run live-sweing",
+    "deploy-live": "npm run build && npm run live"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

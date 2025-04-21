@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify, abort, send_from_directory
+from flask import Flask, request, jsonify, abort, send_from_directory, redirect
 from dotenv import load_dotenv
 load_dotenv()
 from flask_sqlalchemy import SQLAlchemy
@@ -13,22 +13,37 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 import base64
 
-app = Flask(__name__, static_folder='../dist', static_url_path='/')
-# Enable CORS for all origins in both development and production
-CORS(app, resources={
-    r"/api/*": {
-        # "origins": ["http://localhost:3000", "http://127.0.0.1:3000"]
-        "origins": ["http://localhost:8080", "http://127.0.0.1:8080", "http://192.168.99.167:8080"]
-    }
-})
+app = Flask(__name__)
+# Configure CORS based on environment
+if os.environ.get('FLASK_ENV') == 'production':
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": [
+                "http://localhost:5173", 
+                "http://127.0.0.1:5173",
+                "http://localhost:5050",
+                "http://127.0.0.1:5050",
+                "http://localhost:8080",
+                "http://127.0.0.1:8080",
+                "https://geoproof.org",
+                "https://www.geoproof.org"
+            ]
+        }
+    })
+else:
+    # Allow all origins in development
+    CORS(app)
 migrate = Migrate()
-# Load config from environment or config file
-app.config.from_pyfile('config.py', silent=True)
-app.config['SQLALCHEMY_DATABASE_URI'] = app.config.get(
-    'SQLALCHEMY_DATABASE_URI', 'sqlite:///auth.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = app.config.get(
-    'SECRET_KEY', 'your-secret-key-here')  # Will be overridden in production
+# Load environment-specific config
+if os.environ.get('FLASK_ENV') == 'production':
+    app.config.from_pyfile('config.production.py', silent=True)
+else:
+    app.config.from_pyfile('config.development.py', silent=True)
+
+# Set default config values if not specified
+app.config.setdefault('SQLALCHEMY_DATABASE_URI', 'sqlite:///auth.db')
+app.config.setdefault('SQLALCHEMY_TRACK_MODIFICATIONS', False)
+app.config.setdefault('SECRET_KEY', 'fallback-secret-key')
 db = SQLAlchemy(app)
 migrate.init_app(app, db)
 
@@ -193,13 +208,14 @@ def get_devices():
         if ratings:
             avg_rating = sum(r.rating for r in ratings) / len(ratings)
 
-        devices_data.append({
-            **device.to_dict(),
+        device_dict = device.to_dict()
+        device_dict.update({
             'owner': device.owner.username,
             'recentValidations': recent_validation_timestamps,
             'averageRating': avg_rating,
             'ratingCount': len(ratings)
         })
+        devices_data.append(device_dict)
 
     return jsonify(devices_data), 200
 
@@ -611,13 +627,38 @@ def delete_device(device_id):
 
 @app.route('/')
 def serve_frontend():
-    return send_from_directory(app.static_folder, 'index.html')
+    if os.environ.get('FLASK_ENV') == 'production':
+        try:
+            return send_from_directory(app.config['FRONTEND_DIST_PATH'], 'index.html')
+        except Exception as e:
+            app.logger.error(f"Failed to serve frontend from {app.config['FRONTEND_DIST_PATH']}: {str(e)}")
+            abort(500, description="Frontend files not found")
+    else:
+        # Redirect to Vite dev server in development
+        return redirect('http://localhost:8080')
 
 @app.errorhandler(404)
 def not_found(e):
     if request.path.startswith('/api/'):
         return jsonify({'error': 'Not found'}), 404
+    # For SPA routing, fall back to index.html
+    if os.environ.get('FLASK_ENV') == 'production':
+        return send_from_directory('../dist', 'index.html')
     return send_from_directory(app.static_folder, 'index.html')
+
+# Configure static file serving in production
+if os.environ.get('FLASK_ENV') == 'production':
+    @app.route('/<path:path>')
+    def serve_static(path):
+        try:
+            return send_from_directory(app.config['FRONTEND_DIST_PATH'], path)
+        except Exception as e:
+            app.logger.error(f"Failed to serve static file {path} from {app.config['FRONTEND_DIST_PATH']}: {str(e)}")
+            try:
+                return send_from_directory(app.config['FRONTEND_DIST_PATH'], 'index.html')
+            except Exception as e:
+                app.logger.error(f"Failed to serve fallback index.html: {str(e)}")
+                abort(500, description="Frontend files not found")
 
 if __name__ == '__main__':
     with app.app_context():
@@ -627,6 +668,6 @@ if __name__ == '__main__':
         db.create_all()
     
     if os.environ.get('FLASK_ENV') == 'production':
-        app.run(host='0.0.0.0', port=5000)
+        app.run(host='0.0.0.0', port=5050)
     else:
-        app.run(host='0.0.0.0', port=5000, debug=True)
+        app.run(host='0.0.0.0', port=5050, debug=True)
