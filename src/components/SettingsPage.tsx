@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,9 @@ import { useTheme } from '@/hooks/use-theme';
 
 const SettingsPage = () => {
   const { theme, setTheme } = useTheme();
+  const [nightLayerEnabled, setNightLayerEnabled] = useState(
+    localStorage.getItem('geoProof-nightLayer') !== 'disabled'
+  );
   const [profile, setProfile] = useState({
     username: localStorage.getItem('username') || 'username',
     email: 'user@example.com',
@@ -259,17 +262,35 @@ const SettingsPage = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Dark Mode</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Switch between light and dark theme
-                  </p>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Dark Mode</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Switch between light and dark theme
+                    </p>
+                  </div>
+                  <Switch 
+                    checked={theme === 'dark'}
+                    onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+                  />
                 </div>
-                <Switch 
-                  checked={theme === 'dark'}
-                  onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-                />
+                
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Night Layer on Map</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Show day/night visualization on the map
+                    </p>
+                  </div>
+                  <Switch 
+                    checked={nightLayerEnabled}
+                    onCheckedChange={(checked) => {
+                      setNightLayerEnabled(checked);
+                      localStorage.setItem('geoProof-nightLayer', checked ? 'enabled' : 'disabled');
+                    }}
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>

@@ -1,16 +1,17 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { getDevices } from '@/lib/services/device';
+import { useDevices } from '../lib/hooks/useDevices';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Navigation, Info, Star, Loader2 } from "lucide-react";
-import maplibregl, { Marker } from 'maplibre-gl';
+import maplibregl, { Marker, CustomLayerInterface } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { toast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "@/contexts/AuthContext";
+import { NightLayer } from 'maplibre-gl-nightlayer';
 
 const MapView = () => {
   const [fullscreenImage, setFullscreenImage] = useState(null);
@@ -23,11 +24,10 @@ const MapView = () => {
   const [nearbyDevices, setNearbyDevices] = useState(0);
   const [averageRating, setAverageRating] = useState(0);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [mapLoading, setMapLoading] = useState(true); // Local loading state for map
   const { theme } = useTheme(); // Get theme from context
-  const [currentDevices, setCurrentDevices] = useState<any[]>([]); // Store fetched devices
+  const { devices: currentDevices, loading: devicesLoading, error, refreshDevices } = useDevices();
 
   // Define map styles
   const mapStyles = {
@@ -282,8 +282,20 @@ const MapView = () => {
                   }));
                   popup.querySelectorAll('button').forEach(btn => {
                     const starVal = parseInt(btn.getAttribute('data-star'));
-                    btn.querySelector('svg').setAttribute('fill', 
-                      starVal <= ${star} ? 'currentColor' : 'none');
+                    const starButton = btn; // Store the button element
+                    const svgElement = btn.querySelector('svg'); // Select the main SVG
+                    const halfStarSvg = btn.querySelector('svg.absolute'); // Select the half-star SVG
+
+                    if (starVal <= ${star}) {
+                      svgElement.setAttribute('fill', 'currentColor');
+                    } else {
+                      svgElement.setAttribute('fill', 'none');
+                    }
+
+                    // Remove the half-star SVG if it exists
+                    if (halfStarSvg) {
+                      halfStarSvg.remove();
+                    }
                   });
                 })()" 
                   data-star="${star}"
@@ -345,11 +357,39 @@ const MapView = () => {
           <div class="mt-2">
             <h4 class="font-semibold text-xs">Recent Validations</h4>
             <ul class="text-xs mt-1 space-y-1 max-h-20 overflow-y-auto">
-              ${Array.isArray(device.recentValidations) && device.recentValidations.length > 0 ?
-                device.recentValidations.slice(0, 5).map((timestamp: string | number | Date) =>
-                  `<li>${new Date(timestamp).toLocaleString()} - Success</li>`
-                ).join('')
-              : '<li class="text-muted-foreground dark:text-gray-400 italic">No recent validations</li>'}
+              ${(() => {
+                console.log('Recent validations data:', device.recentValidations);
+                // Handle both array and stringified array cases
+                let validationsArray = device.recentValidations;
+                if (typeof validationsArray === 'string') {
+                  try {
+                    validationsArray = JSON.parse(validationsArray);
+                  } catch (err) {
+                    console.error('Failed to parse recentValidations:', err);
+                    return '<li class="text-muted-foreground dark:text-gray-400 italic">No recent validations</li>';
+                  }
+                }
+                if (!Array.isArray(validationsArray)) {
+                  console.error('recentValidations is not an array:', validationsArray);
+                  return '<li class="text-muted-foreground dark:text-gray-400 italic">No recent validations</li>';
+                }
+                if (validationsArray.length === 0) {
+                  return '<li class="text-muted-foreground dark:text-gray-400 italic">No recent validations</li>';
+                }
+                return validationsArray.slice(0, 5).map(timestamp => {
+                  try {
+                    const date = new Date(timestamp);
+                    if (isNaN(date.getTime())) {
+                      console.error('Invalid date from timestamp:', timestamp);
+                      return `<li class="text-red-500">Invalid date format</li>`;
+                    }
+                    return `<li>${date.toLocaleString()} - Success</li>`;
+                  } catch (err) {
+                    console.error('Error parsing date:', err);
+                    return `<li class="text-red-500">Date parse error</li>`;
+                  }
+                }).join('');
+              })()}
             </ul>
           </div>
         </div>
@@ -396,6 +436,13 @@ const MapView = () => {
       map.getCanvas().style.cursor = '';
     });
 
+    // Change cursor on hover
+    map.on('mouseenter', 'unclustered-point', () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', 'unclustered-point', () => {
+      map.getCanvas().style.cursor = '';
+    });
     // Update nearby devices and average rating - Filter ONLY for stats if location is known
     const devicesForStats = userLocation
       ? devices.filter(device => {
@@ -441,40 +488,56 @@ const MapView = () => {
       //   customAttribution: '© <a href="https://carto.com/attributions">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
       // }), 'bottom-right');
 
-      // Fetch devices
-      const fetchDevices = async () => {
+      // Initialize map with devices
+      const initializeMap = async () => {
         try {
-          const devicesData = await getDevices();
-          setCurrentDevices(devicesData); // Store devices
+          // Add markers after map is loaded
+          map.on('load', async () => {
+            map.setProjection({
+              type: 'globe', // Set projection to globe
+            });
 
-    // Add markers after map is loaded
-    map.on('load', async () => {
-      try {
-      
-      map.setProjection({
-        type: 'globe', // Set projection to globe
-      });
 
-      console.log('Map loaded, adding markers...');
-      console.log('Devices data:', devicesData);
-      await addMarkersToMap(devicesData, map);
-      
-      // Force a style refresh to ensure layers are visible
-      map.triggerRepaint();
-      setLoading(false);
-      } catch (err) {
-        setError('Failed to add markers to map');
-        setLoading(false);
-        console.error('Error adding markers:', err);
+      function lightPosition(lat: number, lng: number) {
+        const sin = (d: number) => Math.sin(d * Math.PI / 180);
+        const cos = (d: number) => Math.cos(d * Math.PI / 180);
+        const acos = (v: number) => Math.acos(v) * 180 / Math.PI;
+        const b = acos(cos(lat) * cos(lng));
+        const a = acos(sin(lat) / sin(b));
+        return [-1, a, b] as [number, number, number];
       }
+      // Check if NightLayer is enabled in settings
+      const nightLayerEnabled = localStorage.getItem('geoProof-nightLayer') !== 'disabled';
+      
+      if (nightLayerEnabled) {
+        map.addLayer(new NightLayer({
+          // These are the default values
+          date: null,
+          opacity: 0.5,
+          color: [0, 0, 0, 255],
+          daytimeColor: [0, 0, 0, 0], // transparent
+          twilightSteps: 0,
+          twilightAttenuation: 0.5,
+          updateInterval: 50000, // in milliseconds
+        }) as unknown as CustomLayerInterface);
+      }
+
+            console.log('Map loaded, adding markers...');
+            // Don't add markers here - we'll do it in the devices effect
+            
+            // Force a style refresh to ensure layers are visible
+            map.triggerRepaint();
+            setMapLoading(false);
+
             // Add user marker if location is already known
             if (userLocation) {
               addUserMarkerToMap(userLocation, map);
             }
           });
         } catch (err: any) {
-          setError(err.message || 'Failed to fetch devices');
-          setLoading(false);
+          // Handle error locally instead of using the hook's error state
+          console.error(err.message || 'Failed to fetch devices');
+          setMapLoading(false);
           // Only show error toast if it's not an auth-related error
           if (!err.message.includes('No authentication token found')) {
             toast({
@@ -486,10 +549,9 @@ const MapView = () => {
         }
       };
 
-      fetchDevices();
+      initializeMap();
     }
 
-    // Cleanup map instance on component unmount
     // Cleanup map instance on component unmount
     return () => {
       if (mapInstanceRef.current) {
@@ -499,6 +561,60 @@ const MapView = () => {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only once on mount
+
+  // Separate effect to update markers when devices change
+  useEffect(() => {
+    const updateMarkers = async () => {
+      if (mapInstanceRef.current && !devicesLoading && currentDevices.length > 0) {
+        console.log('Devices updated, refreshing markers...', currentDevices);
+        // Check if map is fully loaded
+        if (mapInstanceRef.current.loaded()) {
+          await addMarkersToMap(currentDevices, mapInstanceRef.current);
+        } else {
+          // If map isn't loaded yet, wait for it
+          mapInstanceRef.current.once('load', async () => {
+            await addMarkersToMap(currentDevices, mapInstanceRef.current!);
+          });
+        }
+      }
+    };
+    
+    updateMarkers();
+  }, [currentDevices, devicesLoading]);
+
+  // Listen for changes to the NightLayer setting
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'geoProof-nightLayer' && mapInstanceRef.current) {
+        const map = mapInstanceRef.current;
+        const nightLayerEnabled = e.newValue !== 'disabled';
+        
+        // Check if NightLayer exists
+        const hasNightLayer = map.getLayer('night-layer');
+        
+        if (nightLayerEnabled && !hasNightLayer) {
+          // Add NightLayer if it's enabled but not present
+          map.addLayer(new NightLayer({
+            date: null,
+            opacity: 0.5,
+            color: [0, 0, 0, 255],
+            daytimeColor: [0, 0, 0, 0],
+            twilightSteps: 0,
+            twilightAttenuation: 0.5,
+            updateInterval: 50000,
+          }) as unknown as CustomLayerInterface);
+        } else if (!nightLayerEnabled && hasNightLayer) {
+          // Remove NightLayer if it's disabled but present
+          map.removeLayer('night-layer');
+        }
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   // Effect for handling theme changes
   useEffect(() => {
@@ -519,6 +635,20 @@ const MapView = () => {
         await addMarkersToMap(currentDevices, map);
         if (userLocation) {
           addUserMarkerToMap(userLocation, map);
+        }
+        
+        // Re-add NightLayer if it was enabled
+        const nightLayerEnabled = localStorage.getItem('geoProof-nightLayer') !== 'disabled';
+        if (nightLayerEnabled) {
+          map.addLayer(new NightLayer({
+            date: null,
+            opacity: 0.5,
+            color: [0, 0, 0, 255],
+            daytimeColor: [0, 0, 0, 0],
+            twilightSteps: 0,
+            twilightAttenuation: 0.5,
+            updateInterval: 50000,
+          }) as unknown as CustomLayerInterface);
         }
       });
     }
@@ -623,6 +753,9 @@ const MapView = () => {
     }
 
     try {
+      // Store current devices to prevent flickering
+      const currentDevicesCopy = [...currentDevices];
+      
       const response = await fetch(`/api/ratings/${deviceId}`, {
         method: 'POST',
         headers: {
@@ -636,17 +769,23 @@ const MapView = () => {
         throw new Error('Failed to submit rating');
       }
 
-      // Refresh devices to show updated ratings
-      const devicesData = await getDevices();
-      setCurrentDevices(devicesData);
-      if (mapInstanceRef.current) {
-        addMarkersToMap(devicesData, mapInstanceRef.current);
-      }
-
       toast({
         title: "Rating submitted",
         description: "Your rating has been saved successfully",
       });
+      
+      // Refresh devices in the background without removing current markers
+      try {
+        await refreshDevices();
+        console.log('Devices refreshed after rating');
+      } catch (refreshErr) {
+        console.error('Error refreshing devices after rating:', refreshErr);
+        // If refresh fails, keep showing the current devices
+        if (mapInstanceRef.current && currentDevicesCopy.length > 0) {
+          console.log('Using cached devices after refresh failure');
+          addMarkersToMap(currentDevicesCopy, mapInstanceRef.current);
+        }
+      }
     } catch (err: any) {
       toast({
         title: "Rating Error",
@@ -739,7 +878,7 @@ const MapView = () => {
       <div className="fixed inset-0 pt-16 pb-[env(safe-area-inset-bottom)] flex flex-col">
         {/* Map Container */}
         <div ref={mapContainerRef} className="flex-grow w-full relative" style={{ zIndex: 10 }}>
-          {loading && (
+          {mapLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-20">
               <div className="flex items-center p-4 bg-background rounded-lg shadow-lg">
                 <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading map data...
@@ -749,7 +888,7 @@ const MapView = () => {
         </div>
 
         {/* Overlay UI Elements - Only show when loading is complete */}
-        {!loading && (
+        {!mapLoading && (
           <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 z-20 flex flex-col items-end space-y-2">
             {/* Info Card */}
             <Card className="w-64 sm:w-72 shadow-lg bg-card/90 backdrop-blur-sm">

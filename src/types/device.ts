@@ -13,4 +13,6 @@ export interface Device {
   hashed_device_key: string; // Required: Hashed device key stored in DB
   owner?: string; // Username of device owner
   recentValidations?: string[]; // Optional: Array of ISO 8601 strings for recent validations
+  averageRating: number;
+  ratingCount: number;
 }

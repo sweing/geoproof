@@ -16,6 +16,7 @@ import { Register } from "./pages/auth/Register";
 import { useState } from "react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import ValidatePage from "./pages/ValidatePage";
+import ProfilePage from "./pages/ProfilePage"; // Import the new ProfilePage
 
 const App = () => {
   // Create a new QueryClient instance inside the component
@@ -38,6 +39,7 @@ const App = () => {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/validate" element={<ProtectedRoute><ValidatePage /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} /> {/* Add profile route */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

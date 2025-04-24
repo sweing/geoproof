@@ -52,7 +52,20 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=True) # Added in a previous migration
+    full_name = db.Column(db.Text, nullable=True)
+    bio = db.Column(db.Text, nullable=True)
+    location = db.Column(db.Text, nullable=True)
     devices = db.relationship('Device', backref='owner', lazy=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'email': self.email,
+            'full_name': self.full_name,
+            'bio': self.bio,
+            'location': self.location
+        }
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -132,8 +145,8 @@ class Device(db.Model):
             'address': self.address,
             'lastValidation': self.last_validation.isoformat() if self.last_validation else None,
             'image': self.image,
-            'secret': self.secret,
-            'hashed_device_key': self.hashed_device_key
+            #'secret': "secret!", # self.secret,
+            #'hashed_device_key': self.hashed_device_key
         }
 
 @app.route('/api/register', methods=['POST'])
@@ -623,6 +636,48 @@ def delete_device(device_id):
     db.session.delete(device)
     db.session.commit()
     return jsonify({'message': 'Device deleted successfully'}), 200
+
+# --- Profile API Endpoints ---
+
+@app.route('/api/profile', methods=['GET'])
+def get_profile():
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        abort(401, description='Missing or invalid authorization token')
+    
+    token = auth_header.split(' ')[1]
+    user_id = verify_token(token)
+
+    user = User.query.get(user_id)
+    if not user:
+        abort(404, description="User not found")
+
+    return jsonify(user.to_dict()), 200
+
+@app.route('/api/profile', methods=['PUT'])
+def update_profile():
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        abort(401, description='Missing or invalid authorization token')
+    
+    token = auth_header.split(' ')[1]
+    user_id = verify_token(token)
+
+    user = User.query.get(user_id)
+    if not user:
+        abort(404, description="User not found")
+
+    data = request.get_json()
+    if not data:
+        abort(400, description="Invalid JSON data")
+
+    user.full_name = data.get('full_name', user.full_name)
+    user.bio = data.get('bio', user.bio)
+    user.location = data.get('location', user.location)
+    # Email and username are not editable here for simplicity
+
+    db.session.commit()
+    return jsonify(user.to_dict()), 200
 
 
 @app.route('/')
