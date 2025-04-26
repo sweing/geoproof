@@ -443,9 +443,9 @@ LONGITUDE=${loc[1]}
                   ) : (
                     <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
                       {devices.map((device) => (
-                        <Card key={device.id} className="overflow-hidden">
-                          <div className="flex p-3">
-                            <div className="w-20 h-20 bg-muted rounded-md overflow-hidden flex-shrink-0">
+                        <Card key={device.id} className="overflow-hidden p-2 sm:p-0">
+                          <div className="flex flex-col sm:flex-row p-2 sm:p-3">
+                            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-muted rounded-md overflow-hidden flex-shrink-0 mx-auto sm:mx-0">
                               {device.image ? (
                                 <img
                                   src={device.image}
