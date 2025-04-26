@@ -29,12 +29,16 @@ const Navbar = () => {
         { name: 'Map', href: '/', icon: MapPin }
       ];
 
+  // Get username from localStorage
+  const loggedInUsername = localStorage.getItem('username');
+
   const authNavigation: NavItem[] = isAuthenticated
     ? [
-        { name: 'Profile', href: '/profile', icon: User }, // Add Profile link
-        { 
-          name: 'Logout', 
-          href: '#', 
+        // Only add profile link if username exists
+        ...(loggedInUsername ? [{ name: 'Profile', href: `/${loggedInUsername}`, icon: User }] : []),
+        {
+          name: 'Logout',
+          href: '#',
           icon: LogOut,
           onClick: async () => {
             await logout();

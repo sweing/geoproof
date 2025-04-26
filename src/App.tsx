@@ -39,7 +39,7 @@ const App = () => {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/validate" element={<ProtectedRoute><ValidatePage /></ProtectedRoute>} />
-              <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} /> {/* Add profile route */}
+              <Route path="/:username" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} /> {/* Dynamic profile route */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

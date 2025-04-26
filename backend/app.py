@@ -679,6 +679,16 @@ def update_profile():
     db.session.commit()
     return jsonify(user.to_dict()), 200
 
+# New endpoint for public user profiles
+@app.route('/api/users/<string:username>', methods=['GET'])
+def get_user_profile(username):
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        abort(404, description="User not found")
+    
+    # Return public profile data (using the existing to_dict method)
+    return jsonify(user.to_dict()), 200
+
 
 @app.route('/')
 def serve_frontend():

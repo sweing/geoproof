@@ -527,12 +527,13 @@ const MapView = () => {
             
             // Force a style refresh to ensure layers are visible
             map.triggerRepaint();
-            setMapLoading(false);
-
+            
             // Add user marker if location is already known
             if (userLocation) {
               addUserMarkerToMap(userLocation, map);
             }
+
+            setMapLoading(false);
           });
         } catch (err: any) {
           // Handle error locally instead of using the hook's error state
