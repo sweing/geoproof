@@ -546,6 +546,24 @@ def get_my_validations():
     
     return jsonify([v.to_dict() for v in validations]), 200
 
+@app.route('/api/all-validations', methods=['GET'])
+def get_all_validations():
+    # Get all validations, ordered by timestamp descending, and join with User to get username
+    validations = db.session.query(Validation, User.username)\
+        .join(User, Validation.user_id == User.id)\
+        .order_by(Validation.timestamp.desc())\
+        .all()
+    
+    # Format the results to include username
+    validations_data = []
+    for validation, username in validations:
+        validation_dict = validation.to_dict()
+        validation_dict['username'] = username
+        validations_data.append(validation_dict)
+
+    return jsonify(validations_data), 200
+
+
 @app.route('/api/ratings/<string:device_id>', methods=['POST'])
 def submit_rating(device_id):
     auth_header = request.headers.get('Authorization')

@@ -7,7 +7,7 @@ interface NavItem {
   icon: React.ComponentType<React.SVGProps<SVGSVGElement> & { size?: number | string }>;
   onClick?: () => void;
 }
-import { MapPin, Smartphone, CheckSquare, Settings, Menu, X, LogIn, LogOut, UserPlus, User } from 'lucide-react'; // Import User icon
+import { MapPin, Smartphone, CheckSquare, Settings, Menu, X, LogIn, LogOut, UserPlus, User, Activity } from 'lucide-react'; // Import User and Activity icons
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
@@ -24,6 +24,7 @@ const Navbar = () => {
   const navigationItems: NavItem[] = isAuthenticated
     ? [
         { name: 'Map', href: '/', icon: MapPin },
+        { name: 'Stream', href: '/stream', icon: Activity }, // Changed icon to Activity
         // Only add profile link if username exists
         ...(loggedInUsername ? [{ name: 'Profile', href: `/${loggedInUsername}`, icon: User }] : []),
         { name: 'Settings', href: '/settings', icon: Settings },

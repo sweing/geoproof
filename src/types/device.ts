@@ -16,3 +16,17 @@ export interface Device {
   averageRating: number;
   ratingCount: number;
 }
+
+export interface Validation {
+  id: number;
+  device_id: string;
+  user_id: number;
+  timestamp: string; // ISO 8601 string format from backend
+  status: 'success' | 'failure';
+  device_latitude?: number;
+  device_longitude?: number;
+  location?: [number, number]; // Derived from lat/lng
+  error_message?: string;
+  ip_address?: string;
+  username: string; // Added username field
+}

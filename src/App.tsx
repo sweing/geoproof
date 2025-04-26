@@ -17,6 +17,7 @@ import { useState } from "react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import ValidatePage from "./pages/ValidatePage";
 import ProfilePage from "./pages/ProfilePage"; // Import the new ProfilePage
+import StreamPage from "./pages/StreamPage"; // Import the new StreamPage
 
 const App = () => {
   // Create a new QueryClient instance inside the component
@@ -40,6 +41,7 @@ const App = () => {
               <Route path="/register" element={<Register />} />
               <Route path="/validate" element={<ProtectedRoute><ValidatePage /></ProtectedRoute>} />
               <Route path="/:username" element={<ProfilePage />} /> {/* Dynamic profile route */}
+              <Route path="/stream" element={<ProtectedRoute><StreamPage /></ProtectedRoute>} /> {/* New Stream page route */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
