@@ -60,7 +60,9 @@ const DeviceManagement = () => {
     location: defaultLocation,
     address: '',
     image: null,
-    hashed_device_key: '' // Added required field
+    hashed_device_key: '', // Added required field
+    averageRating: 0, // Added required field
+    ratingCount: 0 // Added required field
   });
 
   // Fetch devices from API on component mount
@@ -210,30 +212,41 @@ const DeviceManagement = () => {
 
     // Generate ID and Key client-side ONLY for NEW devices
     const deviceId = editingDevice ? editingDevice.id : 'dev' + Math.floor(1000 + Math.random() * 9000);
-    const { key, hashedKey } = editingDevice ? 
-      { key: editingDevice.key, hashedKey: editingDevice.hashed_device_key } : 
+    const { key, hashedKey } = editingDevice ?
+      { key: editingDevice.key, hashedKey: editingDevice.hashed_device_key } :
       generateDeviceKey();
 
-    // Construct payload - include both hashed and raw keys
-    const payload: any = { 
-      ...formData,
-      secret: key, // Store raw key in secret column
-      hashed_device_key: hashedKey // Store hashed key
-    };
-    if (!editingDevice) {
-        payload.id = deviceId; // Send generated ID for new device
-    }
-    // Ensure location is always an array
+    // Define a type for the payload when adding a new device
+    // It extends Omit<Device, 'lastValidation'> and makes 'key' required, also adds 'secret'
+    type AddDevicePayload = Omit<Device, 'lastValidation'> & { key: string; secret: string };
+
+    // Construct payload
+    const payload: AddDevicePayload | Omit<Device, 'id' | 'lastValidation' | 'key'> = editingDevice ?
+      { // Payload for updating
+        ...formData,
+        averageRating: editingDevice.averageRating, // Ensure ratings are included from existing device
+        ratingCount: editingDevice.ratingCount
+      } :
+      { // Payload for adding
+        ...formData,
+        id: deviceId, // Send generated ID for new device
+        key: key, // Include key as required for addDevice function
+        secret: key, // Store raw key in secret column for backend
+        hashed_device_key: hashedKey, // Store hashed key
+        averageRating: 0, // Initialize ratings for new device
+        ratingCount: 0
+      };
+
+    // Ensure location is always an array for both add and update
     payload.location = formData.location && formData.location.length === 2 ? formData.location : defaultLocation;
 
 
     try {
       if (editingDevice) {
-        // Update existing device - pass formData directly
-        // formData already has the correct type: Omit<Device, 'id' | 'lastValidation' | 'key'>
-        const updated = await updateDevice(editingDevice.id, formData);
+        // Update existing device
+        const updated = await updateDevice(editingDevice.id, payload as Omit<Device, 'id' | 'lastValidation' | 'key'>); // Cast to the correct type for updateDevice
         setDevices(devices.map(d => d.id === updated.id ? updated : d));
-        
+
         setNewDeviceData({ // Show success dialog with existing credentials
           id: updated.id,
           key: updated.key || 'N/A',
@@ -243,7 +256,7 @@ const DeviceManagement = () => {
         setEditingDevice(null);
       } else {
         // Add new device
-        const addedDevice = await addDevice(payload); // Send payload including generated ID
+        const addedDevice = await addDevice(payload as AddDevicePayload); // Cast to the correct type for addDevice
         setDevices([...devices, addedDevice]);
 
         setNewDeviceData({ // For success dialog
@@ -281,7 +294,9 @@ const DeviceManagement = () => {
       location: defaultLocation,
       address: '',
       image: null,
-      hashed_device_key: hashedKey
+      hashed_device_key: hashedKey,
+      averageRating: 0, // Reset ratings
+      ratingCount: 0
     });
     setNewDeviceData(prev => ({ ...prev, key })); // Store plain key for display
      // Reset map view if map exists
@@ -305,7 +320,9 @@ const DeviceManagement = () => {
       location: validLocation,
       address: device.address || '',
       image: device.image,
-      hashed_device_key: device.hashed_device_key || '' // Include hashed_device_key
+      hashed_device_key: device.hashed_device_key || '', // Include hashed_device_key
+      averageRating: device.averageRating, // Include averageRating
+      ratingCount: device.ratingCount // Include ratingCount
     });
     setEditingDevice(device);
     setShowAddDevice(true);

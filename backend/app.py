@@ -689,6 +689,21 @@ def get_user_profile(username):
     # Return public profile data (using the existing to_dict method)
     return jsonify(user.to_dict()), 200
 
+# New endpoint for getting a user's validations by username (publicly accessible)
+@app.route('/api/users/<string:username>/validations', methods=['GET'])
+def get_user_validations(username):
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        abort(404, description="User not found")
+    
+    # Get all validations for this user
+    validations = Validation.query.filter_by(
+        user_id=user.id
+    ).order_by(Validation.timestamp.desc()).all()
+    
+    # Return the validations
+    return jsonify([v.to_dict() for v in validations]), 200
+
 
 @app.route('/')
 def serve_frontend():

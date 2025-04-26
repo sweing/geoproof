@@ -24,7 +24,11 @@ interface ValidationRecord {
   ip_address?: string;
 }
 
-const ValidationDashboard = () => {
+interface ValidationDashboardProps {
+  username?: string; // Optional username for viewing other users' validations
+}
+
+const ValidationDashboard: React.FC<ValidationDashboardProps> = ({ username }) => {
   const location = useLocation();
   const [isFromValidation, setIsFromValidation] = useState(false);
   const [validations, setValidations] = useState<ValidationRecord[]>([]);
@@ -57,15 +61,21 @@ const ValidationDashboard = () => {
   }, [location]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token && !username) return;
 
     const fetchValidations = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/my-validations`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        // Use different endpoints based on whether we're viewing our own or another user's validations
+        const endpoint = username 
+          ? `${API_BASE_URL}/users/${username}/validations` // Endpoint for other user's validations
+          : `${API_BASE_URL}/my-validations`; // Endpoint for current user's validations
+        
+        const headers: HeadersInit = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(endpoint, { headers });
         
         if (!response.ok) {
           throw new Error('Failed to fetch validations');
@@ -84,7 +94,7 @@ const ValidationDashboard = () => {
     };
 
     fetchValidations();
-  }, [token]);
+  }, [token, username]);
   
   // Get all validations for 2025
   const getYearlyValidationData = () => {
@@ -386,100 +396,106 @@ const ValidationDashboard = () => {
   
   return (
     <div className="container mx-auto p-4">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Validations</p>
-                <h3 className="text-2xl font-bold">{stats.total}</h3>
+      {/* Stats Cards - Show only if there are validations */}
+      {validations.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Total Validations</p>
+                  <h3 className="text-2xl font-bold">{stats.total}</h3>
+                </div>
+                <div className="bg-primary/10 p-3 rounded-full">
+                  <CheckSquare className="h-6 w-6 text-primary" />
+                </div>
               </div>
-              <div className="bg-primary/10 p-3 rounded-full">
-                <CheckSquare className="h-6 w-6 text-primary" />
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Success Rate</p>
+                  <h3 className="text-2xl font-bold">{stats.successRate}%</h3>
+                </div>
+                <div className="bg-green-100 p-3 rounded-full">
+                  <Check className="h-6 w-6 text-green-600" />
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Success Rate</p>
-                <h3 className="text-2xl font-bold">{stats.successRate}%</h3>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Failed Validations</p>
+                  <h3 className="text-2xl font-bold">{stats.failed}</h3>
+                </div>
+                <div className="bg-red-100 p-3 rounded-full">
+                  <X className="h-6 w-6 text-red-600" />
+                </div>
               </div>
-              <div className="bg-green-100 p-3 rounded-full">
-                <Check className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Failed Validations</p>
-                <h3 className="text-2xl font-bold">{stats.failed}</h3>
-              </div>
-              <div className="bg-red-100 p-3 rounded-full">
-                <X className="h-6 w-6 text-red-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <BarChart3 className="mr-2" />
-              {getYearlyValidationData().reduce((sum, day) => sum + day.count, 0)} validation attempts in 2025
-            </CardTitle>
-            <CardDescription>1-year validation statistics</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="w-full h-64 overflow-x-auto">
-              <div className="min-w-[800px] h-full">
-                <ReactECharts
-                  ref={chartRef}
-                  option={getHeatmapOptions()}
-                  style={{ height: '100%', width: '100%' }}
-                />
+      {/* Charts and Scanner - Only show for own profile (when no username is provided) */}
+      {!username && validations.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <BarChart3 className="mr-2" />
+                {getYearlyValidationData().reduce((sum, day) => sum + day.count, 0)} validation attempts in 2025
+              </CardTitle>
+              <CardDescription>1-year validation statistics</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="w-full h-64 overflow-x-auto">
+                <div className="min-w-[800px] h-full">
+                  <ReactECharts
+                    ref={chartRef}
+                    option={getHeatmapOptions()}
+                    style={{ height: '100%', width: '100%' }}
+                  />
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Camera className="mr-2" />
-              QR Scanner
-            </CardTitle>
-            <CardDescription>Scan device QR codes to validate location</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col items-center justify-center p-4 text-center">
-              <div className="rounded-full bg-secondary/20 p-4 mb-4">
-                <Camera size={32} className="text-secondary" />
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Camera className="mr-2" />
+                QR Scanner
+              </CardTitle>
+              <CardDescription>Scan device QR codes to validate location</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col items-center justify-center p-4 text-center">
+                <div className="rounded-full bg-secondary/20 p-4 mb-4">
+                  <Camera size={32} className="text-secondary" />
+                </div>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Use the camera to scan the QR code displayed on your ESP32 device to validate your presence at that location.
+                </p>
+                <Button 
+                  variant="default" 
+                  className="w-full"
+                  onClick={() => setShowScanner(true)}
+                >
+                  <Camera size={16} className="mr-1" />
+                  Open Scanner
+                </Button>
               </div>
-              <p className="text-sm text-muted-foreground mb-4">
-                Use the camera to scan the QR code displayed on your ESP32 device to validate your presence at that location.
-              </p>
-              <Button 
-                variant="default" 
-                className="w-full"
-                onClick={() => setShowScanner(true)}
-              >
-                <Camera size={16} className="mr-1" />
-                Open Scanner
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
       
       <Card className="mt-4" id="validation-history">
         <CardHeader>

@@ -163,20 +163,19 @@ const ProfilePage: React.FC = () => {
       {/* Display username prominently */}
       <h1 className="text-2xl font-bold mb-4">{profile.username}'s Profile</h1>
       <Tabs defaultValue="profile">
-        <TabsList className={`grid ${gridColsClass} mb-4`}>
+        <TabsList className={`grid ${isOwnProfile ? 'grid-cols-3' : 'grid-cols-2'} mb-4`}>
           <TabsTrigger value="profile">
             <User className="mr-2 h-4 w-4" /> Profile
           </TabsTrigger>
-          {/* Only show Devices and Validations tabs for own profile */}
+          {/* Show Validations tab for all profiles */}
+          <TabsTrigger value="validations">
+            <CheckSquare className="mr-2 h-4 w-4" /> Validations
+          </TabsTrigger>
+          {/* Only show Devices tab for own profile */}
           {isOwnProfile && (
-            <>
-              <TabsTrigger value="devices">
-                <Smartphone className="mr-2 h-4 w-4" /> Devices
-              </TabsTrigger>
-              <TabsTrigger value="validations">
-                <CheckSquare className="mr-2 h-4 w-4" /> Validations
-              </TabsTrigger>
-            </>
+            <TabsTrigger value="devices">
+              <Smartphone className="mr-2 h-4 w-4" /> Devices
+            </TabsTrigger>
           )}
         </TabsList>
 
@@ -296,23 +295,26 @@ const ProfilePage: React.FC = () => {
         </TabsContent>
         )}
 
-        {/* Validations Tab - Only render content if it's the user's own profile */}
-        {isOwnProfile && (
-          <TabsContent value="validations">
-            <Card>
-              <CardHeader>
+        {/* Validations Tab - Render for all profiles */}
+        <TabsContent value="validations">
+          <Card>
+            <CardHeader>
               <CardTitle className="flex items-center">
-                <CheckSquare className="mr-2" /> Your Validations
+                <CheckSquare className="mr-2" /> 
+                {isOwnProfile ? 'Your Validations' : `${profile.username}'s Validations`}
               </CardTitle>
-              <CardDescription>View your past validation attempts.</CardDescription>
+              <CardDescription>
+                {isOwnProfile 
+                  ? 'View your past validation attempts.' 
+                  : `View ${profile.username}'s validation history.`}
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* Pass necessary props if ValidationDashboard needs them */}
-              <ValidationDashboard />
+              {/* Pass username prop to ValidationDashboard when viewing another user's profile */}
+              <ValidationDashboard username={isOwnProfile ? undefined : profile.username} />
             </CardContent>
           </Card>
         </TabsContent>
-        )}
       </Tabs>
     </div>
   );
