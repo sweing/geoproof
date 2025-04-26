@@ -331,7 +331,10 @@ const MapView = () => {
                 <strong>Address:</strong> ${device.address || 'Not provided'}
               </p>
               <p class="text-muted-foreground dark:text-gray-400 text-xs mt-1">
-                <strong>Registered by:</strong> ${device.owner || 'Unknown'}
+                <strong>Registered by:</strong> 
+                <a href="/${device.owner}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                  ${device.owner || 'Unknown'}
+                </a>
               </p>
             </div>
             ${device.image ? `

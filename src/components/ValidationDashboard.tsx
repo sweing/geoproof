@@ -385,7 +385,7 @@ const ValidationDashboard = () => {
   const stats = getValidationStats();
   
   return (
-    <div className="container mx-auto mt-16 p-4">
+    <div className="container mx-auto p-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <Card>
           <CardContent className="pt-6">

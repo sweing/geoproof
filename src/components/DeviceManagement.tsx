@@ -381,7 +381,7 @@ LONGITUDE=${loc[1]}
   };
 
   return (
-    <div className="container mx-auto mt-16 p-4">
+    <div className="container mx-auto p-4">
       <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
         {/* Device List */}
         <div className="w-full md:w-1/3">

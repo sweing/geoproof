@@ -18,24 +18,15 @@ const Navbar = () => {
   const { isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
   
-  const mainNavigation: NavItem[] = isAuthenticated
-    ? [
-        { name: 'Map', href: '/', icon: MapPin },
-        { name: 'My Devices', href: '/devices', icon: Smartphone },
-        { name: 'Validations', href: '/validations', icon: CheckSquare },
-        { name: 'Settings', href: '/settings', icon: Settings },
-      ]
-    : [
-        { name: 'Map', href: '/', icon: MapPin }
-      ];
-
   // Get username from localStorage
   const loggedInUsername = localStorage.getItem('username');
 
-  const authNavigation: NavItem[] = isAuthenticated
+  const navigationItems: NavItem[] = isAuthenticated
     ? [
+        { name: 'Map', href: '/', icon: MapPin },
         // Only add profile link if username exists
         ...(loggedInUsername ? [{ name: 'Profile', href: `/${loggedInUsername}`, icon: User }] : []),
+        { name: 'Settings', href: '/settings', icon: Settings },
         {
           name: 'Logout',
           href: '#',
@@ -47,6 +38,7 @@ const Navbar = () => {
         }
       ]
     : [
+        { name: 'Map', href: '/', icon: MapPin },
         { name: 'Login', href: '/login', icon: LogIn },
         { name: 'Register', href: '/register', icon: UserPlus }
       ];
@@ -65,7 +57,7 @@ const Navbar = () => {
 
         {/* Desktop navigation */}
         <div className="hidden md:flex items-center space-x-4">
-          {[...mainNavigation, ...authNavigation].map((item) => {
+          {navigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.href;
             
@@ -103,7 +95,7 @@ const Navbar = () => {
         isOpen ? "max-h-128" : "max-h-0 invisible opacity-0 border-b-0"
       )}>
         <div className="px-4 py-2 space-y-1">
-          {[...mainNavigation, ...authNavigation].map((item) => {
+          {navigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.href;
             
