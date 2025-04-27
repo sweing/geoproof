@@ -478,7 +478,7 @@ const MapView = () => {
         container: mapContainerRef.current!,
         style: initialStyle,
         center: [16.3767, 48.1887], // Vienna [lng, lat]
-        zoom: 5,
+        zoom: 3,
         attributionControl: false,
       });
 

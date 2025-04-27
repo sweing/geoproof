@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '@/lib/config';
@@ -505,55 +504,40 @@ const ValidationDashboard: React.FC<ValidationDashboardProps> = ({ username }) =
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left p-2 text-muted-foreground font-medium">Date & Time</th>
-                  <th className="text-left p-2 text-muted-foreground font-medium">Device</th>
-                  <th className="text-left p-2 text-muted-foreground font-medium hidden md:table-cell">Location</th>
-                  <th className="text-left p-2 text-muted-foreground font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {validations.slice((currentPage-1)*10, currentPage*10).map((validation, index) => (
-                  <tr 
-                    key={validation.id} 
-                    className={`border-b ${isFromValidation && index === 0 ? 'animate-pulse bg-red-100/50' : ''}`}
-                  >
-                    <td className="p-2 flex items-start">
-                      <Clock size={14} className="mr-1 mt-0.5 text-muted-foreground flex-shrink-0" />
+          <div className="flex flex-col gap-4"> {/* Use flexbox for list layout */}
+            {validations.slice((currentPage-1)*10, currentPage*10).map((validation, index) => (
+                <div 
+                  key={validation.id} 
+                  className={`border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow duration-200 ease-in-out ${isFromValidation && index === 0 ? 'animate-pulse bg-red-100/50' : ''}`} // Styled div for collectible look
+                >
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-center"> {/* Use grid for alignment */}
+                    <div className="flex items-center">
+                      <Clock size={16} className="mr-2 text-muted-foreground" />
                       <div>
                         <div>{new Date(validation.timestamp).toLocaleDateString()}</div>
                         <div className="text-xs text-muted-foreground">
                           {new Date(validation.timestamp).toLocaleTimeString()}
                         </div>
                       </div>
-                    </td>
-                    <td className="p-2">
-                      <div className="flex items-start">
-                        <Smartphone size={14} className="mr-1 mt-0.5 text-muted-foreground flex-shrink-0" />
-                        <div>
+                    </div>
+                    <div className="flex items-center">
+                      <Smartphone size={16} className="mr-2 text-muted-foreground" />
+                      <div>
                       <div>{validation.deviceName || `Device ${validation.device_id}`}</div>
                       <div className="text-xs text-muted-foreground">ID: {validation.device_id}</div>
                         </div>
                       </div>
-                    </td>
-                    <td className="p-2 hidden md:table-cell">
-                      <div className="flex items-start">
-                        <MapPin size={14} className="mr-1 mt-0.5 text-muted-foreground flex-shrink-0" />
-                        <div>
-                          {validation.location ? (
-                            <div className="text-xs text-muted-foreground">
-                              {validation.location[0].toFixed(5)}, {validation.location[1].toFixed(5)}
-                            </div>
-                          ) : (
-                            <div className="text-xs text-muted-foreground">No location data</div>
-                          )}
-                        </div>
+                    <div className="flex items-center">
+                      <MapPin size={16} className="mr-2 text-muted-foreground" />
+                      <div className="text-xs text-muted-foreground">
+                        {validation.location ? (
+                          `${validation.location[0].toFixed(5)}, ${validation.location[1].toFixed(5)}`
+                        ) : (
+                          'Mobile device'
+                        )}
                       </div>
-                    </td>
-                    <td className="p-2">
+                    </div>
+                    <div className="flex items-center col-span-2 md:col-span-1"> {/* Span columns on smaller screens */}
                       {validation.status === 'success' ? (
                         <div className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
                           <Check size={12} className="mr-1" />
@@ -570,26 +554,23 @@ const ValidationDashboard: React.FC<ValidationDashboardProps> = ({ username }) =
                           )}
                         </div>
                       )}
-                    </td>
-                  </tr>
-                ))}
-                
-                {validations.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="p-4 text-center text-muted-foreground">
-                      No validation records found
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+            {validations.length === 0 && (
+              <div className="p-4 text-center text-muted-foreground">
+                No validation records found
+              </div>
+            )}
           </div>
         </CardContent>
         <CardFooter className="flex justify-center">
           <Pagination>
             <PaginationContent>
               <PaginationItem>
-                <PaginationPrevious 
+                <PaginationPrevious
                   onClick={() => setCurrentPage(prev => Math.max(1, prev-1))}
                   className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
                 />
@@ -600,7 +581,7 @@ const ValidationDashboard: React.FC<ValidationDashboardProps> = ({ username }) =
                 </span>
               </PaginationItem>
               <PaginationItem>
-                <PaginationNext 
+                <PaginationNext
                   onClick={() => setCurrentPage(prev => Math.min(Math.ceil(validations.length / 10), prev+1))}
                   className={currentPage === Math.ceil(validations.length / 10) ? "pointer-events-none opacity-50" : ""}
                 />
@@ -609,7 +590,7 @@ const ValidationDashboard: React.FC<ValidationDashboardProps> = ({ username }) =
           </Pagination>
         </CardFooter>
       </Card>
-      
+
       {/* QR Scanner Dialog */}
       <Dialog open={showScanner} onOpenChange={setShowScanner}>
         <DialogContent className="sm:max-w-md">
@@ -619,18 +600,18 @@ const ValidationDashboard: React.FC<ValidationDashboardProps> = ({ username }) =
               Point your camera at the QR code displayed on the ESP32 device
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="relative aspect-video overflow-hidden rounded-lg bg-muted">
-            <video 
+            <video
               ref={videoRef}
               className="h-full w-full object-cover"
               autoPlay
               playsInline
               muted
             />
-            
+
             <div className="absolute inset-0 border-2 border-primary/50 border-dashed rounded-lg"></div>
-            
+
             {/* Scanning animation */}
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="w-64 h-64 border-4 border-primary/30 rounded-lg overflow-hidden">
@@ -638,11 +619,11 @@ const ValidationDashboard: React.FC<ValidationDashboardProps> = ({ username }) =
               </div>
             </div>
           </div>
-          
+
           <div className="flex justify-center">
             <p className="text-sm text-muted-foreground">
-              {window.BarcodeDetector ? 
-                "QR code will be detected automatically" : 
+              {window.BarcodeDetector ?
+                "QR code will be detected automatically" :
                 "Simulating QR detection for this demo"
               }
             </p>
@@ -659,9 +640,9 @@ if (!('BarcodeDetector' in window)) {
     static async getSupportedFormats() {
       return ['qr_code'];
     }
-    
+
     constructor() {}
-    
+
     async detect() {
       return [];
     }
