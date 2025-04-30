@@ -25,9 +25,10 @@ interface ValidationRecord {
 
 interface ValidationDashboardProps {
   username?: string; // Optional username for viewing other users' validations
+  onValidationSuccess?: () => void; // Optional callback for successful validation
 }
 
-const ValidationDashboard: React.FC<ValidationDashboardProps> = ({ username }) => {
+const ValidationDashboard: React.FC<ValidationDashboardProps> = ({ username, onValidationSuccess }) => {
   const location = useLocation();
   const [isFromValidation, setIsFromValidation] = useState(false);
   const [validations, setValidations] = useState<ValidationRecord[]>([]);
@@ -366,6 +367,11 @@ const ValidationDashboard: React.FC<ValidationDashboardProps> = ({ username }) =
 
         const updatedValidations = await validationsResponse.json();
         setValidations(updatedValidations);
+
+        // Call the callback if provided
+        if (onValidationSuccess) {
+          onValidationSuccess();
+        }
 
         toast({
           title: "Validation Successful",

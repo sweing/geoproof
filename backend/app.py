@@ -12,6 +12,7 @@ import pyotp
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 import base64
+import uuid
 
 app = Flask(__name__)
 # Configure CORS based on environment
@@ -55,6 +56,7 @@ class User(db.Model):
     full_name = db.Column(db.Text, nullable=True)
     bio = db.Column(db.Text, nullable=True)
     location = db.Column(db.Text, nullable=True)
+    wallet_address = db.Column(db.Text, nullable=True) # Add wallet_address column
     devices = db.relationship('Device', backref='owner', lazy=True)
 
     def to_dict(self):
@@ -64,7 +66,8 @@ class User(db.Model):
             'email': self.email,
             'full_name': self.full_name,
             'bio': self.bio,
-            'location': self.location
+            'location': self.location,
+            'wallet_address': self.wallet_address
         }
 
     def set_password(self, password):
@@ -72,6 +75,28 @@ class User(db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+# Transaction Model
+class Transaction(db.Model):
+    __tablename__ = 'transactions' # Explicitly set table name
+    id = db.Column(db.Integer, primary_key=True)
+    validation_id = db.Column(db.Integer, db.ForeignKey('validation.id'), nullable=False)
+    token_address = db.Column(db.Text, nullable=False) # Removed unique=True
+    timestamp = db.Column(db.DateTime, default=datetime.now(timezone.utc), nullable=False)
+    sender = db.Column(db.Text, nullable=True) # Add sender column
+    receiver = db.Column(db.Text, nullable=True) # Add receiver column
+    status = db.Column(db.String(20), nullable=True) # Add status column
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'validation_id': self.validation_id,
+            'token_address': self.token_address,
+            'timestamp': self.timestamp.isoformat(),
+            'sender': self.sender,
+            'receiver': self.receiver,
+            'status': self.status
+        }
 
 # Device Model
 class Validation(db.Model):
@@ -132,10 +157,12 @@ class Device(db.Model):
     address = db.Column(db.String(200))
     last_validation = db.Column(db.DateTime, nullable=True)
     image = db.Column(db.Text, nullable=True) # Store image as base64 data URL or path
+    device_address = db.Column(db.Text, nullable=True) # Add device_address column
 
     def to_dict(self):
         return {
             'id': self.id,
+            'device_address': self.device_address, # Include device_address in to_dict
             'name': self.name,
             'description': self.description,
             'status': self.status,
@@ -146,7 +173,7 @@ class Device(db.Model):
             'lastValidation': self.last_validation.isoformat() if self.last_validation else None,
             'image': self.image,
             #'secret': "secret!", # self.secret,
-            #'hashed_device_key': self.hashed_device_key
+            'hashed_device_key': self.hashed_device_key
         }
 
 @app.route('/api/register', methods=['POST'])
@@ -157,6 +184,7 @@ def register():
     
     user = User(username=data['username'])
     user.set_password(data['password'])
+    user.wallet_address = str(uuid.uuid4()) # Generate a unique wallet address
     db.session.add(user)
     db.session.commit()
     return jsonify({'message': 'User created successfully'}), 201
@@ -226,6 +254,7 @@ def get_devices():
             'owner': device.owner.username,
             'recentValidations': recent_validation_timestamps,
             'averageRating': avg_rating,
+            'secret': device.secret,
             'ratingCount': len(ratings)
         })
         devices_data.append(device_dict)
@@ -291,7 +320,8 @@ def add_device():
         latitude=data['location'][0] if data.get('location') and len(data['location']) == 2 else None,
         longitude=data['location'][1] if data.get('location') and len(data['location']) == 2 else None,
         address=data.get('address'),
-        image=data.get('image')
+        image=data.get('image'),
+        device_address=str(uuid.uuid4()) # Generate a unique device address
         # last_validation is initially null
     )
     db.session.add(new_device)
@@ -463,6 +493,7 @@ def validate_totp(code):
 
     # Verify TOTP using the raw secret key from the secret column
     totp = pyotp.TOTP(device.secret)
+    print(f"Verifying TOTP. Received: {totp_number}, Expected: {totp.now()}, Time window: {totp.interval}") # More detailed logging
     if not totp.verify(totp_number):
         print("TOTP verification failed")  # Debug logging
         validation = Validation(
@@ -480,7 +511,12 @@ def validate_totp(code):
         except Exception as e:
             print(f"Failed to save validation record: {str(e)}")  # Debug logging
             db.session.rollback()
-        abort(400, description="Invalid TOTP")
+        # Return a failure status and message
+        return jsonify({
+            'status': 'failure',
+            'device_id': device_id,
+            'error_message': 'Invalid TOTP'
+        }), 400
 
     # Create successful validation record
     print("Creating successful validation record")  # Debug logging
@@ -494,21 +530,43 @@ def validate_totp(code):
         ip_address=request.remote_addr
     )
     db.session.add(validation)
+    db.session.commit() # Commit validation to get its ID
 
     # Update device last validation time
     device.last_validation = datetime.now(timezone.utc)
+
+    # Create a new transaction record
+    # Get the user's wallet address
+    user = User.query.get(user_id)
+    if not user or not user.wallet_address:
+        print(f"User with ID {user_id} not found or has no wallet address")
+        # Decide how to handle this case - maybe log an error and continue without creating a transaction
+        # For now, we'll just print and continue
+        pass # Or return an error if transactions are mandatory
+
+    new_transaction = Transaction(
+        validation_id=validation.id,
+        token_address=str(uuid.uuid4()), # Generate a unique token address
+        timestamp=datetime.now(timezone.utc),
+        sender=device.device_address if device else None, # Sender is the device address
+        receiver=user.wallet_address if user else None, # Receiver is the user's wallet address
+        status='mint' # Set status to "mint" for validation transactions
+    )
+    db.session.add(new_transaction)
+
     try:
         db.session.commit()
-        print("Successfully saved validation and updated device")  # Debug logging
+        print("Successfully saved validation, updated device, and created transaction")  # Debug logging
     except Exception as e:
-        print(f"Failed to save validation: {str(e)}")  # Debug logging
+        print(f"Failed to save validation or transaction: {str(e)}")  # Debug logging
         db.session.rollback()
 
     return jsonify({
         'status': 'success',
         'device_id': device_id,
         'location': [esp_lat, esp_lng],
-        'validation_id': validation.id
+        'validation_id': validation.id,
+        'token_address': new_transaction.token_address # Include token address in response
     }), 200
 
 @app.route('/api/validations/<string:device_id>', methods=['GET'])
@@ -545,6 +603,112 @@ def get_my_validations():
     ).order_by(Validation.timestamp.desc()).all()
     
     return jsonify([v.to_dict() for v in validations]), 200
+
+@app.route('/api/my-transactions', methods=['GET'])
+def get_my_transactions():
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        abort(401, description='Missing or invalid authorization token')
+    
+    token = auth_header.split(' ')[1]
+    user_id = verify_token(token)
+
+    # Get the authenticated user's wallet address
+    user = User.query.get(user_id)
+    if not user or not user.wallet_address:
+        print(f"User with ID {user_id} not found or has no wallet address for fetching transactions")
+        return jsonify([]), 200 # Return empty list if user or wallet not found
+
+    # Get the latest transaction for each token
+    latest_transactions_subquery = db.session.query(
+        Transaction.token_address,
+        db.func.max(Transaction.timestamp).label('latest_timestamp')
+    ).group_by(Transaction.token_address).subquery()
+
+    # Join with the transactions table to get the full latest transaction records
+    latest_transactions = db.session.query(Transaction).join(
+        latest_transactions_subquery,
+        (Transaction.token_address == latest_transactions_subquery.c.token_address) &
+        (Transaction.timestamp == latest_transactions_subquery.c.latest_timestamp)
+    )
+
+    # Filter the latest transactions to include only those where the user is the receiver and status is 'mint' or 'transferred'
+    user_owned_tokens = latest_transactions.filter(
+        (Transaction.receiver == user.wallet_address) &
+        ((Transaction.status == 'mint') | (Transaction.status == 'transferred'))
+    ).order_by(Transaction.timestamp.desc()).all()
+
+
+    return jsonify([t.to_dict() for t in user_owned_tokens]), 200
+
+@app.route('/api/send-token', methods=['POST'])
+def send_token():
+    print(f"Received send-token request: {request.get_json()}") # Add logging for received data
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        abort(401, description='Missing or invalid authorization token')
+    
+    token = auth_header.split(' ')[1]
+    user_id = verify_token(token)
+
+    data = request.get_json()
+    if not data or 'recipient_address' not in data or 'token_addresses' not in data or not isinstance(data['token_addresses'], list):
+        abort(400, description="Missing recipient_address or token_addresses (as a list)")
+
+    recipient_address = data['recipient_address']
+    token_addresses = data['token_addresses']
+
+    # Get the authenticated user's wallet address
+    sender_user = User.query.get(user_id)
+    if not sender_user or not sender_user.wallet_address:
+        abort(400, description="Sender user not found or has no wallet address")
+
+    # Check if recipient address is valid (e.g., exists as a user wallet address)
+    recipient_user = User.query.filter_by(wallet_address=recipient_address).first()
+    if not recipient_user:
+        abort(400, description="Recipient address not found")
+
+    # Use a database transaction for atomicity
+    try:
+        sent_count = 0
+        for token_address in token_addresses:
+            # Verify that the sender currently owns the token
+            # Find the latest transaction for this token
+            latest_transaction = Transaction.query.filter_by(
+                token_address=token_address
+            ).order_by(Transaction.timestamp.desc()).first()
+
+            # Check if the latest transaction's receiver is the sender and the status is 'mint' or 'transferred'
+            if not latest_transaction or latest_transaction.receiver != sender_user.wallet_address or (latest_transaction.status != 'mint' and latest_transaction.status != 'transferred'):
+                 # If any token is not found, not owned, or already transferred, rollback the entire transaction
+                 db.session.rollback()
+                 abort(400, description=f"Token {token_address} not found or not owned by sender or already transferred")
+
+            # The original transaction to update is the latest one where the sender is the receiver
+            original_transaction_to_update = latest_transaction
+
+            # Create a new transaction for the transfer
+            transfer_transaction = Transaction(
+                validation_id=latest_transaction.validation_id, # Link to the original validation
+                token_address=token_address,
+                timestamp=datetime.now(timezone.utc),
+                sender=sender_user.wallet_address,
+                receiver=recipient_address,
+                status='transferred' # Set status to "transferred"
+            )
+            db.session.add(transfer_transaction)
+
+            # Update the status of the original transaction to indicate it's been transferred
+            latest_transaction.status = 'spent' # Or another status indicating it's no longer in the sender's wallet
+            sent_count += 1
+
+        db.session.commit()
+        return jsonify({'message': f'{sent_count} token(s) sent successfully'}), 200
+    except Exception as e:
+        db.session.rollback()
+        print(f"Failed to create transfer transaction: {str(e)}")
+        abort(500, description="Failed to send token")
+
 
 @app.route('/api/all-validations', methods=['GET'])
 def get_all_validations():

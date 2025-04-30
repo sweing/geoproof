@@ -11,7 +11,7 @@ import { API_BASE_URL } from '@/lib/config';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import DeviceManagement from '@/components/DeviceManagement'; // Import DeviceManagement
 import ValidationDashboard from '@/components/ValidationDashboard'; // Import ValidationDashboard
-import { User, Smartphone, CheckSquare } from 'lucide-react'; // Import icons
+import { User, Smartphone, CheckSquare, Copy } from 'lucide-react'; // Import icons, including Copy
 
 interface UserProfile {
   id: number;
@@ -20,9 +20,15 @@ interface UserProfile {
   full_name: string | null;
   bio: string | null;
   location: string | null;
+  wallet_address: string | null;
 }
 
-const ProfilePage: React.FC = () => {
+interface ProfilePageProps {
+  validationCount: number;
+  setValidationCount: React.Dispatch<React.SetStateAction<number>>;
+}
+
+const ProfilePage: React.FC<ProfilePageProps> = ({ validationCount, setValidationCount }) => {
   const { username } = useParams<{ username: string }>(); // Get username from URL
   const auth = useAuth();
   const { toast } = useToast();
@@ -259,6 +265,30 @@ const ProfilePage: React.FC = () => {
                       <p className="text-sm text-muted-foreground">{profile.email || 'Not set'}</p>
                     </div>
                   )}
+                  {/* Wallet address is now visible to all users */}
+                  <div className="flex items-center space-x-2"> {/* Use flex to align wallet address and copy icon */}
+                    <div>
+                      <Label>Wallet Address</Label>
+                      <p className="text-sm text-muted-foreground">{profile.wallet_address || 'Not set'}</p>
+                    </div>
+                    {/* Show copy button if wallet address is available */}
+                    {profile.wallet_address && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(profile.wallet_address || '');
+                          toast({
+                            title: 'Copied!',
+                            description: 'Wallet address copied to clipboard.',
+                          });
+                        }}
+                        className="p-1 h-auto" // Adjust padding and height
+                      >
+                        <Copy size={16} />
+                      </Button>
+                    )}
+                  </div>
                   <div>
                     <Label>Full Name</Label>
                     <p className="text-sm text-muted-foreground">{profile.full_name || 'Not set'}</p>
@@ -311,7 +341,11 @@ const ProfilePage: React.FC = () => {
             </CardHeader>
             <CardContent>
               {/* Pass username prop to ValidationDashboard when viewing another user's profile */}
-              <ValidationDashboard username={isOwnProfile ? undefined : profile.username} />
+              {/* Pass setValidationCount to trigger wallet refresh */}
+              <ValidationDashboard 
+                username={isOwnProfile ? undefined : profile.username} 
+                onValidationSuccess={() => setValidationCount(prev => prev + 1)}
+              />
             </CardContent>
           </Card>
         </TabsContent>

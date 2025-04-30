@@ -18,11 +18,13 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import ValidatePage from "./pages/ValidatePage";
 import ProfilePage from "./pages/ProfilePage"; // Import the new ProfilePage
 import StreamPage from "./pages/StreamPage"; // Import the new StreamPage
+import WalletPage from "./pages/WalletPage"; // Import the new WalletPage
 
 const App = () => {
   // Create a new QueryClient instance inside the component
   // This ensures it's created within the React component lifecycle
   const [queryClient] = useState(() => new QueryClient());
+  const [validationCount, setValidationCount] = useState(0); // State to trigger wallet refresh
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -40,8 +42,9 @@ const App = () => {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/validate" element={<ProtectedRoute><ValidatePage /></ProtectedRoute>} />
-              <Route path="/:username" element={<ProfilePage />} /> {/* Dynamic profile route */}
+              <Route path="/:username" element={<ProfilePage validationCount={validationCount} setValidationCount={setValidationCount} />} /> {/* Dynamic profile route, pass state */}
               <Route path="/stream" element={<ProtectedRoute><StreamPage /></ProtectedRoute>} /> {/* New Stream page route */}
+              <Route path="/wallet" element={<ProtectedRoute><WalletPage validationCount={validationCount} /></ProtectedRoute>} /> {/* New Wallet page route, pass state */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
