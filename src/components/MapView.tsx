@@ -31,7 +31,8 @@ const MapView = () => {
 
   // Define map styles
   const mapStyles = {
-    light: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+    //light: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+    light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
     dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
   };
 
@@ -170,65 +171,75 @@ const MapView = () => {
     await sourcePromise;
 
     // Add cluster circles layer
-    map.addLayer({
-      id: 'clusters',
-      type: 'circle',
-      source: 'devices',
-      filter: ['has', 'point_count'],
-      paint: {
-        'circle-color': [
-          'step',
-          ['get', 'point_count'],
-          getEffectiveTheme() === 'dark' ? '#2A9D8F' : '#1E88E5', // Active color
-          10,
-          getEffectiveTheme() === 'dark' ? '#F4A261' : '#FFA000', // Mid-range
-          30,
-          getEffectiveTheme() === 'dark' ? '#E76F51' : '#E53935'  // High density
-        ],
-        'circle-radius': [
-          'step',
-          ['get', 'point_count'],
-          20,
-          10,
-          30,
+    if (!map.getLayer('clusters')) {
+      map.addLayer({
+        id: 'clusters',
+        type: 'circle',
+        source: 'devices',
+        filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': [
+            'step',
+            ['get', 'point_count'],
+            getEffectiveTheme() === 'dark' ? '#2A9D8F' : '#1E88E5', // Active color
+            10,
+            getEffectiveTheme() === 'dark' ? '#F4A261' : '#FFA000', // Mid-range
+            30,
+            getEffectiveTheme() === 'dark' ? '#E76F51' : '#E53935'  // High density
+          ],
+          'circle-radius': [
+            'step',
+            ['get', 'point_count'],
+            20,
+            10,
+            30,
           30,
           40
-        ]
+        ],
+        'circle-stroke-width': 2,
+        'circle-stroke-color': getEffectiveTheme() === 'dark' ? '#fff' : '#000',
+        'circle-opacity': 0.6 // Add transparency here
       }
     });
+    }
 
     // Add cluster count labels
-    map.addLayer({
-      id: 'cluster-count',
-      type: 'symbol',
-      source: 'devices',
-      filter: ['has', 'point_count'],
-      layout: {
-        'text-field': '{point_count_abbreviated}',
-        'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
-        'text-size': 12
-      }
-    });
+    if (!map.getLayer('cluster-count')) {
+      map.addLayer({
+        id: 'cluster-count',
+        type: 'symbol',
+        source: 'devices',
+        filter: ['has', 'point_count'],
+        layout: {
+          'text-field': '{point_count_abbreviated}',
+          'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+          'text-size': 12
+        }
+      });
+    }
 
     // Add unclustered points
-    map.addLayer({
-      id: 'unclustered-point',
-      type: 'circle',
-      source: 'devices',
-      filter: ['!', ['has', 'point_count']],
-      paint: {
-        'circle-color': [
-          'match',
-          ['get', 'status'],
-          'active', getEffectiveTheme() === 'dark' ? '#2A9D8F' : '#1E88E5',
-          'inactive', getEffectiveTheme() === 'dark' ? '#94A3B8' : '#78909C',
-          getEffectiveTheme() === 'dark' ? '#94A3B8' : '#78909C' // default
-        ],
-        'circle-radius': 7,
-        'circle-stroke-width': 2,
-        'circle-stroke-color': getEffectiveTheme() === 'dark' ? '#fff' : '#000'
-      }
-    });
+    if (!map.getLayer('unclustered-point')) {
+      map.addLayer({
+        id: 'unclustered-point',
+        type: 'circle',
+        source: 'devices',
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': [
+            'match',
+            ['get', 'status'],
+            'active', getEffectiveTheme() === 'dark' ? '#2A9D8F' : '#1E88E5',
+            'inactive', getEffectiveTheme() === 'dark' ? '#94A3B8' : '#78909C',
+            getEffectiveTheme() === 'dark' ? '#94A3B8' : '#78909C' // default
+          ],
+          'circle-opacity': 0.6, // Add transparency here
+          'circle-radius': 7,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': getEffectiveTheme() === 'dark' ? '#fff' : '#000'
+        }
+      });
+    }
 
     // Click handler for clusters
     map.on('click', 'clusters', async (e) => {
@@ -527,16 +538,17 @@ const MapView = () => {
 
             console.log('Map loaded, adding markers...');
             // Don't add markers here - we'll do it in the devices effect
-            
-            // Force a style refresh to ensure layers are visible
-            map.triggerRepaint();
-            
             // Add user marker if location is already known
             if (userLocation) {
               addUserMarkerToMap(userLocation, map);
             }
 
-            setMapLoading(false);
+            // Add markers after map is loaded and layers are added
+            await addMarkersToMap(currentDevices, map);
+
+            map.once('render', () => {
+              setMapLoading(false);
+            });
           });
         } catch (err: any) {
           // Handle error locally instead of using the hook's error state
