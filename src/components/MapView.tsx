@@ -13,6 +13,13 @@ import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { NightLayer } from 'maplibre-gl-nightlayer';
 
+// Helper function to get computed style of a CSS variable
+const getCssVariableValue = (variableName: string): string => {
+  if (typeof window === 'undefined') return ''; // Return empty string if window is not available (SSR)
+  const style = getComputedStyle(document.documentElement);
+  return style.getPropertyValue(variableName).trim();
+};
+
 const MapView = () => {
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -46,20 +53,21 @@ const MapView = () => {
 
   // Create marker element based on device status
   const createMarkerElement = (status: 'active' | 'inactive'): HTMLElement => {
-    const activeColor = getEffectiveTheme() === 'dark' ? '#2A9D8F' : '#1E88E5';
-    const inactiveColor = getEffectiveTheme() === 'dark' ? '#94A3B8' : '#78909C';
-    const strokeColor = getEffectiveTheme() === 'dark' ? '#fff' : '#000';
-    const color = status === 'active' ? activeColor : inactiveColor;
+    // Use Tailwind classes for colors
+    const activeColorClass = getEffectiveTheme() === 'dark' ? 'text-primary' : 'text-blue-600'; // Using blue-600 for light mode primary-like color
+    const inactiveColorClass = getEffectiveTheme() === 'dark' ? 'text-muted-foreground' : 'text-gray-600'; // Using gray-600 for light mode muted-like color
+    const strokeColorClass = getEffectiveTheme() === 'dark' ? 'text-foreground' : 'text-black';
+    const colorClass = status === 'active' ? activeColorClass : inactiveColorClass;
     const el = document.createElement('div');
-    el.className = 'map-marker';
+    el.className = `map-marker ${colorClass} ${strokeColorClass}`; // Add classes to the element
     el.innerHTML = `
       <div class="relative flex items-center justify-center cursor-pointer">
-        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M18 3C12.5 3 8 7.5 8 13C8 15.4 8.8 17.5 10.2 19.2L18 30/L25.8 19.2C27.2 17.5 28 15.4 28 13C28 7.5 23.5 3 18 3Z" fill="${color}" stroke="${strokeColor}" stroke-width="2"/>
-            <circle cx="18" cy="13" r="4.5" fill="${strokeColor}"/>
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18 3C12.5 3 8 7.5 8 13C8 15.4 8.8 17.5 10.2 19.2L18 30/L25.8 19.2C27.2 17.5 28 15.4 28 13C28 7.5 23.5 3 18 3Z" stroke="currentColor" stroke-width="2"/>
+            <circle cx="18" cy="13" r="4.5" fill="currentColor"/>
           </svg>
         </div>
-      `,
+      `; // Use currentColor for fill and stroke
     el.style.width = '36px';
     el.style.height = '36px';
     return el;
@@ -170,6 +178,14 @@ const MapView = () => {
     // Wait for source to be ready before adding layers
     await sourcePromise;
 
+    const effectiveTheme = getEffectiveTheme();
+    const primaryColor = `hsl(${getCssVariableValue('--primary')})`;
+    const accentColor = `hsl(${getCssVariableValue('--accent')})`;
+    const destructiveColor = `hsl(${getCssVariableValue('--destructive')})`;
+    const foregroundColor = `hsl(${getCssVariableValue('--foreground')})`;
+    const mutedForegroundColor = `hsl(${getCssVariableValue('--muted-foreground')})`;
+    const backgroundColor = `hsl(${getCssVariableValue('--background')})`;
+
     // Add cluster circles layer
     if (!map.getLayer('clusters')) {
       map.addLayer({
@@ -181,11 +197,12 @@ const MapView = () => {
           'circle-color': [
             'step',
             ['get', 'point_count'],
-            getEffectiveTheme() === 'dark' ? '#2A9D8F' : '#1E88E5', // Active color
+            // Use computed HSL values from CSS variables for cluster colors
+            primaryColor, // Primary color for low count
             10,
-            getEffectiveTheme() === 'dark' ? '#F4A261' : '#FFA000', // Mid-range
+            accentColor, // Accent color for mid-range
             30,
-            getEffectiveTheme() === 'dark' ? '#E76F51' : '#E53935'  // High density
+            destructiveColor  // Destructive color for high density
           ],
           'circle-radius': [
             'step',
@@ -197,8 +214,8 @@ const MapView = () => {
           40
         ],
         'circle-stroke-width': 2,
-        'circle-stroke-color': getEffectiveTheme() === 'dark' ? '#fff' : '#000',
-        'circle-opacity': 0.6 // Add transparency here
+        'circle-stroke-color': foregroundColor, // Use foreground for stroke
+        'circle-opacity': 0.8 // Adjust transparency slightly
       }
     });
     }
@@ -214,6 +231,9 @@ const MapView = () => {
           'text-field': '{point_count_abbreviated}',
           'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
           'text-size': 12
+        },
+        paint: {
+          'text-color': foregroundColor // Use background for text color
         }
       });
     }
@@ -229,14 +249,14 @@ const MapView = () => {
           'circle-color': [
             'match',
             ['get', 'status'],
-            'active', getEffectiveTheme() === 'dark' ? '#2A9D8F' : '#1E88E5',
-            'inactive', getEffectiveTheme() === 'dark' ? '#94A3B8' : '#78909C',
-            getEffectiveTheme() === 'dark' ? '#94A3B8' : '#78909C' // default
+            'active', primaryColor, // Primary color for active
+            'inactive', mutedForegroundColor, // Muted foreground for inactive
+            mutedForegroundColor // default
           ],
-          'circle-opacity': 0.6, // Add transparency here
+          'circle-opacity': 0.8, // Adjust transparency slightly
           'circle-radius': 7,
           'circle-stroke-width': 2,
-          'circle-stroke-color': getEffectiveTheme() === 'dark' ? '#fff' : '#000'
+          'circle-stroke-color': foregroundColor // Use foreground for stroke
         }
       });
     }
@@ -680,12 +700,15 @@ const MapView = () => {
     // Create a custom element for the user marker
     const el = document.createElement('div');
     el.className = 'user-location-marker';
-    el.style.backgroundColor = '#3B82F6';
+    // Use Tailwind classes for user marker color and shadow
+    el.className = 'user-location-marker bg-blue-600 border-2 border-white shadow-blue-600/50';
     el.style.width = '16px';
     el.style.height = '16px';
     el.style.borderRadius = '50%';
-    el.style.border = '2px solid white';
-    el.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.5)';
+    // Remove inline styles that are now handled by Tailwind classes
+    // el.style.backgroundColor = '#3B82F6';
+    // el.style.border = '2px solid white';
+    // el.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.5)';
 
     // Add new user marker
     userMarkerRef.current = new maplibregl.Marker({ element: el })
@@ -895,7 +918,7 @@ const MapView = () => {
         {/* Map Container */}
         <div ref={mapContainerRef} className="flex-grow w-full relative" style={{ zIndex: 10 }}>
           {mapLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-20">
+            <div className="absolute inset-0 flex items-center justify-center bg-background/70 z-20">
               <div className="flex items-center p-4 bg-background rounded-lg shadow-lg">
                 <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading map data...
               </div>
