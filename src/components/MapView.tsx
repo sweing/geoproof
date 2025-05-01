@@ -207,17 +207,17 @@ const MapView = () => {
           'circle-radius': [
             'step',
             ['get', 'point_count'],
-            20,
+            15,
             10,
+            20,
             30,
-          30,
-          40
-        ],
-        'circle-stroke-width': 2,
-        'circle-stroke-color': foregroundColor, // Use foreground for stroke
-        'circle-opacity': 0.8 // Adjust transparency slightly
-      }
-    });
+            25
+          ],
+          'circle-stroke-width': 2,
+          'circle-stroke-color': foregroundColor, // Use foreground for stroke
+          'circle-opacity': 0.8 // Adjust transparency slightly
+        }
+      });
     }
 
     // Add cluster count labels

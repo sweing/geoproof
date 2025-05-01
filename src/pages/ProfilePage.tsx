@@ -317,7 +317,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ validationCount, setValidatio
               </CardTitle>
               <CardDescription>Manage your registered devices.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               {/* Pass necessary props if DeviceManagement needs them, e.g., userId */}
               <DeviceManagement />
             </CardContent>
@@ -330,20 +330,20 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ validationCount, setValidatio
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
-                <CheckSquare className="mr-2" /> 
+                <CheckSquare className="mr-2" />
                 {isOwnProfile ? 'Your Validations' : `${profile.username}'s Validations`}
               </CardTitle>
               <CardDescription>
-                {isOwnProfile 
-                  ? 'View your past validation attempts.' 
+                {isOwnProfile
+                  ? 'View your past validation attempts.'
                   : `View ${profile.username}'s validation history.`}
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               {/* Pass username prop to ValidationDashboard when viewing another user's profile */}
               {/* Pass setValidationCount to trigger wallet refresh */}
-              <ValidationDashboard 
-                username={isOwnProfile ? undefined : profile.username} 
+              <ValidationDashboard
+                username={isOwnProfile ? undefined : profile.username}
                 onValidationSuccess={() => setValidationCount(prev => prev + 1)}
               />
             </CardContent>
