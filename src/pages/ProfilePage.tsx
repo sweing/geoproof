@@ -20,7 +20,7 @@ interface UserProfile {
   full_name: string | null;
   bio: string | null;
   location: string | null;
-  wallet_address: string | null;
+  collection_address: string | null;
 }
 
 interface ProfilePageProps {
@@ -171,16 +171,16 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ validationCount, setValidatio
       <Tabs defaultValue="profile">
         <TabsList className={`grid ${isOwnProfile ? 'grid-cols-3' : 'grid-cols-2'} mb-4`}>
           <TabsTrigger value="profile">
-            <User className="mr-2 h-4 w-4" /> Profile
+            Profile
           </TabsTrigger>
           {/* Show Validations tab for all profiles */}
           <TabsTrigger value="validations">
-            <CheckSquare className="mr-2 h-4 w-4" /> Validations
+            Validations
           </TabsTrigger>
           {/* Only show Devices tab for own profile */}
           {isOwnProfile && (
             <TabsTrigger value="devices">
-              <Smartphone className="mr-2 h-4 w-4" /> Devices
+              Devices
             </TabsTrigger>
           )}
         </TabsList>
@@ -265,22 +265,22 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ validationCount, setValidatio
                       <p className="text-sm text-muted-foreground">{profile.email || 'Not set'}</p>
                     </div>
                   )}
-                  {/* Wallet address is now visible to all users */}
-                  <div className="flex items-center space-x-2"> {/* Use flex to align wallet address and copy icon */}
+                  {/* Collection address is now visible to all users */}
+                  <div className="flex items-center space-x-2"> {/* Use flex to align collection address and copy icon */}
                     <div>
-                      <Label>Wallet Address</Label>
-                      <p className="text-sm text-muted-foreground">{profile.wallet_address || 'Not set'}</p>
+                      <Label>Collection Address</Label>
+                      <p className="text-sm text-muted-foreground">{profile.collection_address || 'Not set'}</p>
                     </div>
-                    {/* Show copy button if wallet address is available */}
-                    {profile.wallet_address && (
+                    {/* Show copy button if collection address is available */}
+                    {profile.collection_address && (
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          navigator.clipboard.writeText(profile.wallet_address || '');
+                          navigator.clipboard.writeText(profile.collection_address || '');
                           toast({
                             title: 'Copied!',
-                            description: 'Wallet address copied to clipboard.',
+                            description: 'Collection address copied to clipboard.',
                           });
                         }}
                         className="p-1 h-auto" // Adjust padding and height

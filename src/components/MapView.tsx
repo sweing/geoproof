@@ -363,7 +363,7 @@ const MapView = () => {
               </p>
               <p class="text-muted-foreground dark:text-gray-400 text-xs mt-1">
                 <strong>Registered by:</strong> 
-                <a href="/${device.owner}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                <a href="/${device.owner}" class="text-primary hover:underline">
                   ${device.owner || 'Unknown'}
                 </a>
               </p>

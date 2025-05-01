@@ -7,7 +7,7 @@ interface NavItem {
   icon: React.ComponentType<React.SVGProps<SVGSVGElement> & { size?: number | string }>;
   onClick?: () => void;
 }
-import { MapPin, Smartphone, CheckSquare, Settings, Menu, X, LogIn, LogOut, UserPlus, User, Activity, Wallet } from 'lucide-react'; // Import User, Activity, and Wallet icons
+import { MapPin, Smartphone, CheckSquare, Settings, Menu, X, LogIn, LogOut, UserPlus, User, Activity, Images } from 'lucide-react'; // Import User, Activity, and Folder icons
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
@@ -27,7 +27,7 @@ const Navbar = () => {
         { name: 'Stream', href: '/stream', icon: Activity }, // Changed icon to Activity
         // Only add profile link if username exists
         ...(loggedInUsername ? [{ name: 'Profile', href: `/${loggedInUsername}`, icon: User }] : []),
-        { name: 'Wallet', href: '/wallet', icon: Wallet }, // Add Wallet link
+        { name: 'Collection', href: '/collection', icon: Images }, // Add Collection link
         { name: 'Settings', href: '/settings', icon: Settings },
         {
           name: 'Logout',

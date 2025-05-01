@@ -56,7 +56,7 @@ class User(db.Model):
     full_name = db.Column(db.Text, nullable=True)
     bio = db.Column(db.Text, nullable=True)
     location = db.Column(db.Text, nullable=True)
-    wallet_address = db.Column(db.Text, nullable=True) # Add wallet_address column
+    collection_address = db.Column(db.Text, nullable=True) # Add collection_address column
     devices = db.relationship('Device', backref='owner', lazy=True)
 
     def to_dict(self):
@@ -67,7 +67,7 @@ class User(db.Model):
             'full_name': self.full_name,
             'bio': self.bio,
             'location': self.location,
-            'wallet_address': self.wallet_address
+            'collection_address': self.collection_address
         }
 
     def set_password(self, password):
@@ -184,7 +184,7 @@ def register():
     
     user = User(username=data['username'])
     user.set_password(data['password'])
-    user.wallet_address = str(uuid.uuid4()) # Generate a unique wallet address
+    user.collection_address = str(uuid.uuid4()) # Generate a unique collection address
     db.session.add(user)
     db.session.commit()
     return jsonify({'message': 'User created successfully'}), 201
@@ -536,10 +536,10 @@ def validate_totp(code):
     device.last_validation = datetime.now(timezone.utc)
 
     # Create a new transaction record
-    # Get the user's wallet address
+    # Get the user's collection address
     user = User.query.get(user_id)
-    if not user or not user.wallet_address:
-        print(f"User with ID {user_id} not found or has no wallet address")
+    if not user or not user.collection_address:
+        print(f"User with ID {user_id} not found or has no collection address")
         # Decide how to handle this case - maybe log an error and continue without creating a transaction
         # For now, we'll just print and continue
         pass # Or return an error if transactions are mandatory
@@ -549,7 +549,7 @@ def validate_totp(code):
         token_address=str(uuid.uuid4()), # Generate a unique token address
         timestamp=datetime.now(timezone.utc),
         sender=device.device_address if device else None, # Sender is the device address
-        receiver=user.wallet_address if user else None, # Receiver is the user's wallet address
+        receiver=user.collection_address if user else None, # Receiver is the user's collection address
         status='mint' # Set status to "mint" for validation transactions
     )
     db.session.add(new_transaction)
@@ -613,11 +613,11 @@ def get_my_transactions():
     token = auth_header.split(' ')[1]
     user_id = verify_token(token)
 
-    # Get the authenticated user's wallet address
+    # Get the authenticated user's collection address
     user = User.query.get(user_id)
-    if not user or not user.wallet_address:
-        print(f"User with ID {user_id} not found or has no wallet address for fetching transactions")
-        return jsonify([]), 200 # Return empty list if user or wallet not found
+    if not user or not user.collection_address:
+        print(f"User with ID {user_id} not found or has no collection address for fetching transactions")
+        return jsonify([]), 200 # Return empty list if user or collection not found
 
     # Get the latest transaction for each token
     latest_transactions_subquery = db.session.query(
@@ -634,7 +634,7 @@ def get_my_transactions():
 
     # Filter the latest transactions to include only those where the user is the receiver and status is 'mint' or 'transferred'
     user_owned_tokens = latest_transactions.filter(
-        (Transaction.receiver == user.wallet_address) &
+        (Transaction.receiver == user.collection_address) &
         ((Transaction.status == 'mint') | (Transaction.status == 'transferred'))
     ).order_by(Transaction.timestamp.desc()).all()
 
@@ -658,13 +658,13 @@ def send_token():
     recipient_address = data['recipient_address']
     token_addresses = data['token_addresses']
 
-    # Get the authenticated user's wallet address
+    # Get the authenticated user's collection address
     sender_user = User.query.get(user_id)
-    if not sender_user or not sender_user.wallet_address:
-        abort(400, description="Sender user not found or has no wallet address")
+    if not sender_user or not sender_user.collection_address:
+        abort(400, description="Sender user not found or has no collection address")
 
-    # Check if recipient address is valid (e.g., exists as a user wallet address)
-    recipient_user = User.query.filter_by(wallet_address=recipient_address).first()
+    # Check if recipient address is valid (e.g., exists as a user collection address)
+    recipient_user = User.query.filter_by(collection_address=recipient_address).first()
     if not recipient_user:
         abort(400, description="Recipient address not found")
 
@@ -679,7 +679,7 @@ def send_token():
             ).order_by(Transaction.timestamp.desc()).first()
 
             # Check if the latest transaction's receiver is the sender and the status is 'mint' or 'transferred'
-            if not latest_transaction or latest_transaction.receiver != sender_user.wallet_address or (latest_transaction.status != 'mint' and latest_transaction.status != 'transferred'):
+            if not latest_transaction or latest_transaction.receiver != sender_user.collection_address or (latest_transaction.status != 'mint' and latest_transaction.status != 'transferred'):
                  # If any token is not found, not owned, or already transferred, rollback the entire transaction
                  db.session.rollback()
                  abort(400, description=f"Token {token_address} not found or not owned by sender or already transferred")
@@ -692,14 +692,14 @@ def send_token():
                 validation_id=latest_transaction.validation_id, # Link to the original validation
                 token_address=token_address,
                 timestamp=datetime.now(timezone.utc),
-                sender=sender_user.wallet_address,
+                sender=sender_user.collection_address,
                 receiver=recipient_address,
                 status='transferred' # Set status to "transferred"
             )
             db.session.add(transfer_transaction)
 
             # Update the status of the original transaction to indicate it's been transferred
-            latest_transaction.status = 'spent' # Or another status indicating it's no longer in the sender's wallet
+            latest_transaction.status = 'spent' # Or another status indicating it's no longer in the sender's collection
             sent_count += 1
 
         db.session.commit()

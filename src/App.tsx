@@ -18,7 +18,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import ValidatePage from "./pages/ValidatePage";
 import ProfilePage from "./pages/ProfilePage"; // Import the new ProfilePage
 import StreamPage from "./pages/StreamPage"; // Import the new StreamPage
-import WalletPage from "./pages/WalletPage"; // Import the new WalletPage
+import CollectionPage from "./pages/CollectionPage"; // Import the new CollectionPage
 
 const App = () => {
   // Create a new QueryClient instance inside the component
@@ -44,7 +44,7 @@ const App = () => {
               <Route path="/validate" element={<ProtectedRoute><ValidatePage /></ProtectedRoute>} />
               <Route path="/:username" element={<ProfilePage validationCount={validationCount} setValidationCount={setValidationCount} />} /> {/* Dynamic profile route, pass state */}
               <Route path="/stream" element={<ProtectedRoute><StreamPage /></ProtectedRoute>} /> {/* New Stream page route */}
-              <Route path="/wallet" element={<ProtectedRoute><WalletPage validationCount={validationCount} /></ProtectedRoute>} /> {/* New Wallet page route, pass state */}
+              <Route path="/collection" element={<ProtectedRoute><CollectionPage validationCount={validationCount} /></ProtectedRoute>} /> {/* New Collection page route, pass state */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

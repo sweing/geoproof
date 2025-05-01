@@ -19,11 +19,11 @@ interface Transaction {
   status: string | null; // Add status
 }
 
-interface WalletPageProps {
+interface CollectionPageProps {
   validationCount: number;
 }
 
-const WalletPage: React.FC<WalletPageProps> = ({ validationCount }) => {
+const CollectionPage: React.FC<CollectionPageProps> = ({ validationCount }) => {
   const auth = useAuth();
   const { toast } = useToast();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -134,7 +134,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ validationCount }) => {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between"> {/* Use flex to align title and button */}
           <div>
-            <CardTitle>Your Wallet</CardTitle>
+            <CardTitle>Your Collection</CardTitle>
             <CardDescription>View your received tokens from validations.</CardDescription>
           </div>
           <Button onClick={() => setIsSendModalOpen(true)} size="sm" disabled={selectedTokens.length === 0}>
@@ -145,26 +145,30 @@ const WalletPage: React.FC<WalletPageProps> = ({ validationCount }) => {
           {transactions.length === 0 ? (
             <p>No transactions found yet.</p>
           ) : (
-            <div className="flex flex-col gap-4"> {/* Use flexbox for list layout */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"> {/* Use grid for collection layout */}
               {transactions.map((transaction) => (
-                <div key={transaction.id} className="border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow duration-200 ease-in-out flex items-center space-x-4"> {/* Styled div with flex for checkbox */}
-                  <Checkbox
-                    checked={selectedTokens.includes(transaction.token_address)}
-                    onCheckedChange={(isChecked: boolean) => handleCheckboxChange(transaction.token_address, isChecked)}
-                  />
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center flex-grow"> {/* Use grid for alignment, flex-grow to take remaining space */}
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Token Address</p>
-                      <p className="text-sm">{transaction.token_address}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">From / To</p>
-                      <p className="text-sm">{transaction.sender || 'N/A'} &rarr; {transaction.receiver || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Status / Timestamp</p>
-                      <p className="text-sm">{transaction.status || 'N/A'} | {new Date(transaction.timestamp).toLocaleString()}</p>
-                    </div>
+                <div key={transaction.id} className="border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow duration-200 ease-in-out flex flex-col space-y-2"> {/* Styled div with flex-col for stacking content */}
+                  <div className="flex items-center justify-between"> {/* Flex for checkbox and title */}
+                    <Checkbox
+                      checked={selectedTokens.includes(transaction.token_address)}
+                      onCheckedChange={(isChecked: boolean) => handleCheckboxChange(transaction.token_address, isChecked)}
+                    />
+                    <p className="text-sm font-medium text-muted-foreground">Token</p> {/* Added a title for the token card */}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Address</p>
+                    <p className="text-sm break-all">{transaction.token_address}</p> {/* Use break-all for long addresses */}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">From / To</p>
+                    <p className="text-sm break-all">{transaction.sender || 'N/A'} &rarr; {transaction.receiver || 'N/A'}</p> {/* Use break-all */}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Status / Timestamp</p>
+                    <p className="text-sm">
+                      <div className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                        {transaction.status || 'N/A'}
+                      </div> {new Date(transaction.timestamp).toLocaleString()}</p>
                   </div>
                 </div>
               ))}
@@ -179,7 +183,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ validationCount }) => {
           <DialogHeader>
             <DialogTitle>Send Token(s)</DialogTitle>
             <DialogDescription>
-              Enter the recipient's wallet address. You are sending {selectedTokens.length} token(s).
+              Enter the recipient's collection address. You are sending {selectedTokens.length} token(s).
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -192,7 +196,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ validationCount }) => {
                 value={recipientAddress}
                 onChange={(e) => setRecipientAddress(e.target.value)}
                 className="col-span-3"
-                placeholder="Enter recipient wallet address"
+                placeholder="Enter recipient collection address"
               />
             </div>
             {/* Removed token address input field */}
@@ -206,4 +210,4 @@ const WalletPage: React.FC<WalletPageProps> = ({ validationCount }) => {
   );
 };
 
-export default WalletPage;
+export default CollectionPage;

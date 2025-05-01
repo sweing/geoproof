@@ -116,6 +116,7 @@ debug.log
 *~
 
 # Misc
+*.bak
 .sass-cache/
 *.css.map
 *.js.map
