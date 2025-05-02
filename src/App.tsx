@@ -19,6 +19,7 @@ import ValidatePage from "./pages/ValidatePage";
 import ProfilePage from "./pages/ProfilePage"; // Import the new ProfilePage
 import StreamPage from "./pages/StreamPage"; // Import the new StreamPage
 import CollectionPage from "./pages/CollectionPage"; // Import the new CollectionPage
+import DeviceRegistryPage from "./pages/DeviceRegistryPage"; // Import the new DeviceRegistryPage
 
 const App = () => {
   // Create a new QueryClient instance inside the component
@@ -42,6 +43,7 @@ const App = () => {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/validate" element={<ProtectedRoute><ValidatePage /></ProtectedRoute>} />
+              <Route path="/registry" element={<DeviceRegistryPage />} /> {/* New Device Registry page route */}
               <Route path="/:username" element={<ProfilePage validationCount={validationCount} setValidationCount={setValidationCount} />} /> {/* Dynamic profile route, pass state */}
               <Route path="/stream" element={<ProtectedRoute><StreamPage /></ProtectedRoute>} /> {/* New Stream page route */}
               <Route path="/collection" element={<ProtectedRoute><CollectionPage validationCount={validationCount} /></ProtectedRoute>} /> {/* New Collection page route, pass state */}

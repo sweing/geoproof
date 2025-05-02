@@ -30,3 +30,11 @@ export interface Validation {
   ip_address?: string;
   username: string; // Added username field
 }
+
+// Extend Device type to include fields returned by the /api/devices endpoint
+export interface RegistryDevice extends Device {
+  owner: string;
+  recentValidations: string[]; // Array of ISO date strings
+  averageRating: number | null;
+  ratingCount: number;
+}

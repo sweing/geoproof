@@ -25,6 +25,7 @@ const Navbar = () => {
     ? [
         { name: 'Map', href: '/', icon: MapPin },
         { name: 'Stream', href: '/stream', icon: Activity }, // Changed icon to Activity
+        { name: 'Registry', href: '/registry', icon: Smartphone }, // Add Device Registry link
         // Only add profile link if username exists
         ...(loggedInUsername ? [{ name: 'Profile', href: `/${loggedInUsername}`, icon: User }] : []),
         { name: 'Collection', href: '/collection', icon: Images }, // Add Collection link
